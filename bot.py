@@ -265,6 +265,108 @@ SCRIPT_MAP = [
     (r'[\u4E00-\u9FFF\u3400-\u4DBF]', 'zh-CN'),  # CJK
 ]
 
+# ─── Mixed-language segmentation ──────────────────────────────────────────────
+_SEGMENT_RE = re.compile(
+    r'(?P<km>[\u1780-\u17FF]+)'
+    r'|(?P<th>[\u0E00-\u0E7F]+)'
+    r'|(?P<lo>[\u0E80-\u0EFF]+)'
+    r'|(?P<my>[\u1000-\u109F]+)'
+    r'|(?P<am>[\u1200-\u137F]+)'
+    r'|(?P<ka>[\u10A0-\u10FF]+)'
+    r'|(?P<he>[\u0590-\u05FF]+)'
+    r'|(?P<hi>[\u0900-\u097F]+)'
+    r'|(?P<bn>[\u0980-\u09FF]+)'
+    r'|(?P<pa>[\u0A00-\u0A7F]+)'
+    r'|(?P<gu>[\u0A80-\u0AFF]+)'
+    r'|(?P<ta>[\u0B80-\u0BFF]+)'
+    r'|(?P<te>[\u0C00-\u0C7F]+)'
+    r'|(?P<kn>[\u0C80-\u0CFF]+)'
+    r'|(?P<ml>[\u0D00-\u0D7F]+)'
+    r'|(?P<si>[\u0D80-\u0DFF]+)'
+    r'|(?P<ar>[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+)'
+    r'|(?P<ru>[\u0400-\u04FF]+)'
+    r'|(?P<el>[\u0370-\u03FF]+)'
+    r'|(?P<mn_s>[\u1800-\u18AF]+)'
+    r'|(?P<ko>[\uAC00-\uD7FF]+)'
+    r'|(?P<ja>[\u3040-\u30FF]+)'
+    r'|(?P<zh>[\u4E00-\u9FFF\u3400-\u4DBF]+)'
+    r'|(?P<other>[^\u1780-\u17FF\u0E00-\u0EFF\u1000-\u109F\u1200-\u137F'
+    r'\u10A0-\u10FF\u0590-\u05FF\u0900-\u09FF\u0A00-\u0AFF\u0B80-\u0BFF'
+    r'\u0C00-\u0CFF\u0D00-\u0DFF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF'
+    r'\uFE70-\uFEFF\u0400-\u04FF\u0370-\u03FF\u1800-\u18AF\uAC00-\uD7FF'
+    r'\u3040-\u30FF\u4E00-\u9FFF\u3400-\u4DBF]+)'
+)
+_SCRIPT_LANG = {
+    'km': 'km', 'th': 'th', 'lo': 'lo', 'my': 'my', 'am': 'am',
+    'ka': 'ka', 'he': 'he', 'hi': 'hi', 'bn': 'bn', 'pa': 'hi',
+    'gu': 'gu', 'ta': 'ta', 'te': 'te', 'kn': 'kn', 'ml': 'ml',
+    'si': 'si', 'ar': 'ar', 'ru': 'ru', 'el': 'el', 'mn_s': 'mn',
+    'ko': 'ko', 'ja': 'ja', 'zh': 'zh-CN',
+}
+
+def segment_text(text: str) -> list:
+    """Split text into [(chunk, lang)] by script. Merges adjacent same-lang segments."""
+    raw = []
+    for m in _SEGMENT_RE.finditer(text):
+        g = m.lastgroup
+        chunk = m.group()
+        if g == 'other':
+            raw.append((chunk, None))
+        else:
+            lang = _SCRIPT_LANG.get(g, 'en')
+            # Refine Arabic-script
+            if g == 'ar':
+                try:
+                    d = NORMALIZE.get(langdetect_detect(chunk), langdetect_detect(chunk))
+                    if d in ('fa', 'ur', 'ps', 'ar'):
+                        lang = d
+                except Exception:
+                    pass
+            # Refine Cyrillic
+            elif g == 'ru':
+                try:
+                    d = NORMALIZE.get(langdetect_detect(chunk), langdetect_detect(chunk))
+                    if d in ('ru', 'uk', 'bg', 'sr', 'mk', 'kk', 'mn'):
+                        lang = d
+                except Exception:
+                    pass
+            raw.append((chunk, lang))
+
+    # Resolve Latin/other segments
+    resolved = []
+    for chunk, lang in raw:
+        if lang is not None:
+            resolved.append((chunk, lang))
+            continue
+        stripped = chunk.strip()
+        if not stripped:
+            # Pure whitespace — attach to previous segment
+            if resolved:
+                resolved[-1] = (resolved[-1][0] + chunk, resolved[-1][1])
+            continue
+        detected = 'en'
+        if len(stripped) >= 4:
+            try:
+                langs = detect_langs(stripped)
+                if langs and langs[0].prob >= 0.65:
+                    detected = NORMALIZE.get(langs[0].lang, langs[0].lang)
+            except Exception:
+                pass
+        resolved.append((chunk, detected))
+
+    # Apply LANG_FALLBACK
+    resolved = [(c, LANG_FALLBACK.get(l, l)) for c, l in resolved]
+
+    # Merge adjacent same-language segments
+    merged = []
+    for chunk, lang in resolved:
+        if merged and merged[-1][1] == lang:
+            merged[-1] = (merged[-1][0] + chunk, lang)
+        else:
+            merged.append([chunk, lang])
+
+    return [(c, l) for c, l in merged] if merged else [('', 'en')]
+
 GENDER_KEY = "voice_gender"
 
 KEYBOARD = ReplyKeyboardMarkup(
@@ -327,15 +429,52 @@ async def _start_ffmpeg():
 async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
     if proc is None:
         proc = await _start_ffmpeg()
-
     communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             proc.stdin.write(chunk["data"])
     proc.stdin.close()
-
     stdout, _ = await proc.communicate()
     return BytesIO(stdout)
+
+async def _synth_segment_pcm(text: str, voice: str) -> bytes:
+    """Synthesize one segment to raw PCM s16le 16000Hz mono."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
+        "-ac", "1", "-ar", "16000", "-f", "s16le", "pipe:1",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            proc.stdin.write(chunk["data"])
+    proc.stdin.close()
+    stdout, _ = await proc.communicate()
+    return stdout
+
+async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
+    """Encode concatenated PCM bytes to OGG Opus."""
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-f", "s16le", "-ac", "1", "-ar", "16000", "-i", "pipe:0",
+        "-c:a", "libopus", "-b:a", "32k", "-f", "ogg", "pipe:1",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await proc.communicate(input=pcm)
+    return BytesIO(stdout)
+
+async def synthesize_mixed(segments: list, voice_map: dict) -> BytesIO:
+    """Synthesize multiple-language segments in parallel, return one OGG."""
+    tasks = [
+        _synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'))
+        for chunk, lang in segments
+        if chunk.strip()
+    ]
+    pcm_parts = await asyncio.gather(*tasks)
+    return await _pcm_to_ogg(b''.join(pcm_parts))
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
@@ -377,41 +516,46 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = text.strip()
 
-    # Start ffmpeg process immediately (parallel with language detection)
-    ffmpeg_task = asyncio.create_task(_start_ffmpeg())
+    # Segment text by language (handles single and mixed-language texts)
+    segments = segment_text(text)
+    is_mixed = len(segments) > 1
 
-    # Detect language while ffmpeg is starting up
-    detected_lang = detect_language(text)
-    detected_lang = LANG_FALLBACK.get(detected_lang, detected_lang)
     gender = context.user_data.get(GENDER_KEY, "female")
-    voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
+    vm = MALE_VOICES if gender == "male" else FEMALE_VOICES
 
-    voice = voice_map.get(detected_lang) or voice_map.get('en')
-    cache_key = f"{voice}:{text}"
+    if is_mixed:
+        cache_key = f"mixed:{gender}:{text}"
+    else:
+        lang = segments[0][1]
+        voice = vm.get(lang) or vm.get('en')
+        cache_key = f"{voice}:{text}"
+
     cached_file_id = _cache_get(cache_key)
 
-    logging.info(f"Detected: {detected_lang} | Voice: {voice} | Chars: {len(text)} | Cache: {'HIT' if cached_file_id else 'MISS'}")
+    logging.info(f"Segments: {[(c[:12]+'…' if len(c)>12 else c, l) for c,l in segments]} | Cache: {'HIT' if cached_file_id else 'MISS'}")
 
     quote = ReplyParameters(message_id=update.message.message_id)
 
     try:
         if cached_file_id:
-            ffmpeg_task.cancel()
             await update.message.reply_voice(
                 voice=cached_file_id,
                 reply_markup=KEYBOARD,
                 reply_parameters=quote
             )
         else:
-            # Show recording indicator while synthesizing
             asyncio.create_task(
                 context.bot.send_chat_action(
                     update.effective_chat.id,
                     constants.ChatAction.RECORD_VOICE
                 )
             )
-            proc = await ffmpeg_task
-            audio_buf = await synthesize_to_bytes(text, voice, proc=proc)
+            if is_mixed:
+                audio_buf = await synthesize_mixed(segments, vm)
+            else:
+                proc = await _start_ffmpeg()
+                audio_buf = await synthesize_to_bytes(text, voice, proc=proc)
+
             msg = await update.message.reply_voice(
                 voice=audio_buf,
                 reply_markup=KEYBOARD,
