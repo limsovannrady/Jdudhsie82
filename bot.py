@@ -356,12 +356,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ បានប្តូរទៅ 👩 សំឡេងស្រី", reply_markup=KEYBOARD)
         return
 
-    # Trim and limit text to 500 chars for speed
     text = text.strip()
-    truncated = False
-    if len(text) > 500:
-        text = text[:500].rsplit(' ', 1)[0]
-        truncated = True
 
     detected_lang = detect_language(text)
     gender = context.user_data.get(GENDER_KEY, "female")
@@ -371,8 +366,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
     gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
     caption = f"🌐 {lang_name} | {gender_label}"
-    if truncated:
-        caption += " | ✂️ 500"
 
     cache_key = f"{voice}:{text}"
     cached_file_id = _cache_get(cache_key)
