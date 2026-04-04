@@ -68,7 +68,7 @@ MALE_VOICES = {
     "hu":    "hu-HU-TamasNeural",
     "id":    "id-ID-ArdiNeural",
     "is":    "is-IS-GunnarNeural",
-    "it":    "it-IT-GiuseppeNeural",
+    "it":    "it-IT-GiuseppeMultilingualNeural",
     "ja":    "ja-JP-KeitaNeural",
     "jv":    "jv-ID-DimasNeural",
     "ka":    "ka-GE-GiorgiNeural",
