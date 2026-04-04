@@ -3,11 +3,30 @@ import re
 import asyncio
 import logging
 from io import BytesIO
+from collections import OrderedDict
 import edge_tts
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
+
+# Cache Telegram file_id for repeated text — avoids re-upload (instant resend)
+_FILE_ID_CACHE: OrderedDict[str, str] = OrderedDict()
+_CACHE_MAX = 200
+
+def _cache_get(key: str):
+    if key in _FILE_ID_CACHE:
+        _FILE_ID_CACHE.move_to_end(key)
+        return _FILE_ID_CACHE[key]
+    return None
+
+def _cache_set(key: str, file_id: str):
+    if key in _FILE_ID_CACHE:
+        _FILE_ID_CACHE.move_to_end(key)
+    else:
+        if len(_FILE_ID_CACHE) >= _CACHE_MAX:
+            _FILE_ID_CACHE.popitem(last=False)
+        _FILE_ID_CACHE[key] = file_id
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -355,15 +374,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if truncated:
         caption += " | ✂️ 500"
 
-    logging.info(f"Detected lang: {detected_lang} | Voice: {voice} | Chars: {len(text)}")
+    cache_key = f"{voice}:{text}"
+    cached_file_id = _cache_get(cache_key)
+
+    logging.info(f"Detected: {detected_lang} | Chars: {len(text)} | Cache: {'HIT' if cached_file_id else 'MISS'}")
 
     try:
-        audio_buf = await synthesize_to_bytes(text, voice)
-        await update.message.reply_voice(
-            voice=audio_buf,
-            caption=caption,
-            reply_markup=KEYBOARD
-        )
+        if cached_file_id:
+            # Instant — no upload needed
+            await update.message.reply_voice(
+                voice=cached_file_id,
+                caption=caption,
+                reply_markup=KEYBOARD
+            )
+        else:
+            audio_buf = await synthesize_to_bytes(text, voice)
+            msg = await update.message.reply_voice(
+                voice=audio_buf,
+                caption=caption,
+                reply_markup=KEYBOARD
+            )
+            # Save file_id for next time
+            _cache_set(cache_key, msg.voice.file_id)
     except Exception as e:
         logging.error(f"Error synthesizing voice: {e}")
         await update.message.reply_text(
