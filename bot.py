@@ -6,6 +6,7 @@ import edge_tts
 from langdetect import detect as langdetect_detect, DetectorFactory
 from telegram import Update, constants, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.request import HTTPXRequest
 
 DetectorFactory.seed = 0
 
@@ -207,10 +208,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
     gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
 
-    audio_buf, _ = await asyncio.gather(
-        synthesize_to_bytes(text, voice),
+    # Fire chat action without waiting — start TTS immediately
+    asyncio.create_task(
         context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
     )
+
+    audio_buf = await synthesize_to_bytes(text, voice)
 
     await update.message.reply_voice(
         voice=audio_buf,
@@ -218,7 +221,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=KEYBOARD
     )
 
-app = ApplicationBuilder().token(TOKEN).build()
+request = HTTPXRequest(
+    connection_pool_size=20,
+    read_timeout=30,
+    write_timeout=30,
+    connect_timeout=10,
+)
+
+app = (
+    ApplicationBuilder()
+    .token(TOKEN)
+    .request(request)
+    .concurrent_updates(True)
+    .build()
+)
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.run_polling(drop_pending_updates=True)
+app.run_polling(drop_pending_updates=True, timeout=10)
