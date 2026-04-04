@@ -362,6 +362,15 @@ def segment_text(text: str) -> list:
             if resolved:
                 resolved[-1] = (resolved[-1][0] + chunk, resolved[-1][1])
             continue
+        # If chunk has no actual Latin letters (only digits, punctuation, emoji, etc.)
+        # absorb it into the previous segment so it is read in the same language context
+        has_latin_letters = bool(re.search(r'[a-zA-Z]', chunk))
+        if not has_latin_letters:
+            if resolved:
+                resolved[-1] = (resolved[-1][0] + chunk, resolved[-1][1])
+            else:
+                resolved.append((chunk, 'en'))
+            continue
         detected = 'en'
         if len(stripped) >= 4:
             try:
