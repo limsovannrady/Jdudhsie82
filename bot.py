@@ -336,6 +336,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if GENDER_KEY not in context.user_data:
         context.user_data[GENDER_KEY] = "female"
+    await context.bot.send_dice(chat_id=update.effective_chat.id, emoji="🎉")
     await update.message.reply_text(
         '<tg-emoji emoji-id="5472055112702629499">👋</tg-emoji> <b>សួស្តី</b> K21b.Lim Sovannrady\n\n'
         '<b>ខ្ញុំជា Text to voice bot</b>\n\n'
