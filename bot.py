@@ -293,7 +293,7 @@ async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
     # Start ffmpeg async process (ready to receive MP3 stream)
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
-        "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1",
+        "-c:a", "libopus", "-b:a", "32k", "-ac", "1", "-ar", "16000", "-f", "ogg", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL
@@ -362,10 +362,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 request = HTTPXRequest(
-    connection_pool_size=20,
-    read_timeout=30,
-    write_timeout=30,
-    connect_timeout=10,
+    connection_pool_size=32,
+    read_timeout=60,
+    write_timeout=60,
+    connect_timeout=5,
 )
 
 app = (
@@ -378,4 +378,4 @@ app = (
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.add_error_handler(error_handler)
-app.run_polling(drop_pending_updates=True, timeout=10)
+app.run_polling(drop_pending_updates=True, timeout=30)
