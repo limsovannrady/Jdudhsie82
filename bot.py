@@ -12,138 +12,225 @@ DetectorFactory.seed = 0
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 
+# All available edge-tts voices — male and female per language
 MALE_VOICES = {
-    "km":    "km-KH-PisethNeural",
-    "en":    "en-US-GuyNeural",
+    "af":    "af-ZA-WillemNeural",
+    "am":    "am-ET-AmehaNeural",
     "ar":    "ar-SA-HamedNeural",
-    "zh-CN": "zh-CN-YunxiNeural",
-    "zh-TW": "zh-TW-YunJheNeural",
-    "fr":    "fr-FR-HenriNeural",
-    "de":    "de-DE-ConradNeural",
-    "es":    "es-ES-AlvaroNeural",
-    "hi":    "hi-IN-MadhurNeural",
-    "ja":    "ja-JP-KeitaNeural",
-    "ko":    "ko-KR-InJoonNeural",
-    "pt":    "pt-BR-AntonioNeural",
-    "ru":    "ru-RU-DmitryNeural",
-    "th":    "th-TH-NiwatNeural",
-    "vi":    "vi-VN-NamMinhNeural",
-    "id":    "id-ID-ArdiNeural",
-    "tr":    "tr-TR-AhmetNeural",
-    "pl":    "pl-PL-MarekNeural",
-    "nl":    "nl-NL-MaartenNeural",
-    "it":    "it-IT-DiegoNeural",
-    "sv":    "sv-SE-MattiasNeural",
-    "da":    "da-DK-JeppeNeural",
-    "fi":    "fi-FI-HarriNeural",
-    "no":    "nb-NO-FinnNeural",
-    "cs":    "cs-CZ-AntoninNeural",
-    "ro":    "ro-RO-EmilNeural",
-    "hu":    "hu-HU-TamasNeural",
-    "uk":    "uk-UA-OstapNeural",
-    "el":    "el-GR-NestorasNeural",
+    "az":    "az-AZ-BabekNeural",
+    "bg":    "bg-BG-BorislavNeural",
     "bn":    "bn-BD-PradeepNeural",
+    "bs":    "bs-BA-GoranNeural",
+    "ca":    "ca-ES-EnricNeural",
+    "cs":    "cs-CZ-AntoninNeural",
+    "cy":    "cy-GB-AledNeural",
+    "da":    "da-DK-JeppeNeural",
+    "de":    "de-DE-ConradNeural",
+    "el":    "el-GR-NestorasNeural",
+    "en":    "en-US-GuyNeural",
+    "es":    "es-ES-AlvaroNeural",
+    "et":    "et-EE-KertNeural",
+    "fa":    "fa-IR-FaridNeural",
+    "fi":    "fi-FI-HarriNeural",
+    "fil":   "fil-PH-AngeloNeural",
+    "fr":    "fr-FR-HenriNeural",
+    "ga":    "ga-IE-ColmNeural",
+    "gl":    "gl-ES-RoiNeural",
+    "gu":    "gu-IN-NiranjanNeural",
+    "he":    "he-IL-AvriNeural",
+    "hi":    "hi-IN-MadhurNeural",
+    "hr":    "hr-HR-SreckoNeural",
+    "hu":    "hu-HU-TamasNeural",
+    "id":    "id-ID-ArdiNeural",
+    "is":    "is-IS-GunnarNeural",
+    "it":    "it-IT-DiegoNeural",
+    "ja":    "ja-JP-KeitaNeural",
+    "jv":    "jv-ID-DimasNeural",
+    "ka":    "ka-GE-GiorgiNeural",
+    "kk":    "kk-KZ-DauletNeural",
+    "km":    "km-KH-PisethNeural",
+    "kn":    "kn-IN-GaganNeural",
+    "ko":    "ko-KR-InJoonNeural",
+    "lo":    "lo-LA-ChanthavongNeural",
+    "lt":    "lt-LT-LeonasNeural",
+    "lv":    "lv-LV-NilsNeural",
+    "mk":    "mk-MK-AleksandarNeural",
+    "ml":    "ml-IN-MidhunNeural",
+    "mn":    "mn-MN-BataaNeural",
+    "mr":    "mr-IN-ManoharNeural",
+    "ms":    "ms-MY-OsmanNeural",
+    "mt":    "mt-MT-JosephNeural",
+    "my":    "my-MM-ThihaNeural",
+    "nb":    "nb-NO-FinnNeural",
+    "ne":    "ne-NP-SagarNeural",
+    "nl":    "nl-NL-MaartenNeural",
+    "pl":    "pl-PL-MarekNeural",
+    "ps":    "ps-AF-GulNawazNeural",
+    "pt":    "pt-BR-AntonioNeural",
+    "ro":    "ro-RO-EmilNeural",
+    "ru":    "ru-RU-DmitryNeural",
+    "si":    "si-LK-SameeraNeural",
+    "sk":    "sk-SK-LukasNeural",
+    "sl":    "sl-SI-RokNeural",
+    "so":    "so-SO-MuuseNeural",
+    "sq":    "sq-AL-IlirNeural",
+    "sr":    "sr-RS-NicholasNeural",
+    "su":    "su-ID-JajangNeural",
+    "sv":    "sv-SE-MattiasNeural",
+    "sw":    "sw-KE-RafikiNeural",
     "ta":    "ta-IN-ValluvarNeural",
     "te":    "te-IN-MohanNeural",
-    "ur":    "ur-PK-AsadNeural",
-    "my":    "my-MM-ThihaNeural",
-    "ne":    "ne-NP-SagarNeural",
-    "af":    "af-ZA-WillemNeural",
-    "sw":    "sw-KE-RafikiNeural",
-    "sk":    "sk-SK-LukasNeural",
-    "hr":    "hr-HR-SreckoNeural",
-    "bg":    "bg-BG-BorislavNeural",
-    "ms":    "ms-MY-OsmanNeural",
-    "gu":    "gu-IN-NiranjanNeural",
-    "mr":    "mr-IN-ManoharNeural",
-    "iw":    "he-IL-AvriNeural",
+    "th":    "th-TH-NiwatNeural",
+    "tr":    "tr-TR-AhmetNeural",
+    "uk":    "uk-UA-OstapNeural",
+    "ur":    "ur-IN-SalmanNeural",
+    "uz":    "uz-UZ-SardorNeural",
+    "vi":    "vi-VN-NamMinhNeural",
+    "zh-CN": "zh-CN-YunxiNeural",
+    "zh-TW": "zh-TW-YunJheNeural",
+    "zu":    "zu-ZA-ThembaNeural",
 }
 
 FEMALE_VOICES = {
-    "km":    "km-KH-SreymomNeural",
-    "en":    "en-US-JennyNeural",
+    "af":    "af-ZA-AdriNeural",
+    "am":    "am-ET-MekdesNeural",
     "ar":    "ar-SA-ZariyahNeural",
-    "zh-CN": "zh-CN-XiaoxiaoNeural",
-    "zh-TW": "zh-TW-HsiaoChenNeural",
-    "fr":    "fr-FR-DeniseNeural",
-    "de":    "de-DE-KatjaNeural",
-    "es":    "es-ES-ElviraNeural",
-    "hi":    "hi-IN-SwaraNeural",
-    "ja":    "ja-JP-NanamiNeural",
-    "ko":    "ko-KR-SunHiNeural",
-    "pt":    "pt-BR-FranciscaNeural",
-    "ru":    "ru-RU-SvetlanaNeural",
-    "th":    "th-TH-PremwadeeNeural",
-    "vi":    "vi-VN-HoaiMyNeural",
-    "id":    "id-ID-GadisNeural",
-    "tr":    "tr-TR-EmelNeural",
-    "pl":    "pl-PL-ZofiaNeural",
-    "nl":    "nl-NL-ColetteNeural",
-    "it":    "it-IT-ElsaNeural",
-    "sv":    "sv-SE-SofieNeural",
-    "da":    "da-DK-ChristelNeural",
-    "fi":    "fi-FI-NooraNeural",
-    "no":    "nb-NO-PernilleNeural",
-    "cs":    "cs-CZ-VlastaNeural",
-    "ro":    "ro-RO-AlinaNeural",
-    "hu":    "hu-HU-NoemiNeural",
-    "uk":    "uk-UA-PolinaNeural",
-    "el":    "el-GR-AthinaNeural",
+    "az":    "az-AZ-BanuNeural",
+    "bg":    "bg-BG-KalinaNeural",
     "bn":    "bn-BD-NabanitaNeural",
+    "bs":    "bs-BA-VesnaNeural",
+    "ca":    "ca-ES-JoanaNeural",
+    "cs":    "cs-CZ-VlastaNeural",
+    "cy":    "cy-GB-NiaNeural",
+    "da":    "da-DK-ChristelNeural",
+    "de":    "de-DE-KatjaNeural",
+    "el":    "el-GR-AthinaNeural",
+    "en":    "en-US-JennyNeural",
+    "es":    "es-ES-ElviraNeural",
+    "et":    "et-EE-AnuNeural",
+    "fa":    "fa-IR-DilaraNeural",
+    "fi":    "fi-FI-NooraNeural",
+    "fil":   "fil-PH-BlessicaNeural",
+    "fr":    "fr-FR-DeniseNeural",
+    "ga":    "ga-IE-OrlaNeural",
+    "gl":    "gl-ES-SabelaNeural",
+    "gu":    "gu-IN-DhwaniNeural",
+    "he":    "he-IL-HilaNeural",
+    "hi":    "hi-IN-SwaraNeural",
+    "hr":    "hr-HR-GabrijelaNeural",
+    "hu":    "hu-HU-NoemiNeural",
+    "id":    "id-ID-GadisNeural",
+    "is":    "is-IS-GudrunNeural",
+    "it":    "it-IT-ElsaNeural",
+    "ja":    "ja-JP-NanamiNeural",
+    "jv":    "jv-ID-SitiNeural",
+    "ka":    "ka-GE-EkaNeural",
+    "kk":    "kk-KZ-AigulNeural",
+    "km":    "km-KH-SreymomNeural",
+    "kn":    "kn-IN-SapnaNeural",
+    "ko":    "ko-KR-SunHiNeural",
+    "lo":    "lo-LA-KeomanyNeural",
+    "lt":    "lt-LT-OnaNeural",
+    "lv":    "lv-LV-EveritaNeural",
+    "mk":    "mk-MK-MarijaNeural",
+    "ml":    "ml-IN-SobhanaNeural",
+    "mn":    "mn-MN-YesuiNeural",
+    "mr":    "mr-IN-AarohiNeural",
+    "ms":    "ms-MY-YasminNeural",
+    "mt":    "mt-MT-GraceNeural",
+    "my":    "my-MM-NilarNeural",
+    "nb":    "nb-NO-PernilleNeural",
+    "ne":    "ne-NP-HemkalaNeural",
+    "nl":    "nl-NL-ColetteNeural",
+    "pl":    "pl-PL-ZofiaNeural",
+    "ps":    "ps-AF-LatifaNeural",
+    "pt":    "pt-BR-FranciscaNeural",
+    "ro":    "ro-RO-AlinaNeural",
+    "ru":    "ru-RU-SvetlanaNeural",
+    "si":    "si-LK-ThiliniNeural",
+    "sk":    "sk-SK-ViktoriaNeural",
+    "sl":    "sl-SI-PetraNeural",
+    "so":    "so-SO-UbaxNeural",
+    "sq":    "sq-AL-AnilaNeural",
+    "sr":    "sr-RS-SophieNeural",
+    "su":    "su-ID-TutiNeural",
+    "sv":    "sv-SE-SofieNeural",
+    "sw":    "sw-KE-ZuriNeural",
     "ta":    "ta-IN-PallaviNeural",
     "te":    "te-IN-ShrutiNeural",
-    "ml":    "ml-IN-SobhanaNeural",
-    "ur":    "ur-PK-UzmaNeural",
-    "my":    "my-MM-NilarNeural",
-    "ne":    "ne-NP-HemkalaNeural",
-    "si":    "si-LK-ThiliniNeural",
-    "af":    "af-ZA-AdriNeural",
-    "sw":    "sw-KE-ZuriNeural",
-    "sk":    "sk-SK-ViktoriaNeural",
-    "hr":    "hr-HR-GabrijelaNeural",
-    "bg":    "bg-BG-KalinaNeural",
-    "ms":    "ms-MY-YasminNeural",
-    "gu":    "gu-IN-DhwaniNeural",
-    "mr":    "mr-IN-AarohiNeural",
-    "iw":    "he-IL-HilaNeural",
+    "th":    "th-TH-PremwadeeNeural",
+    "tr":    "tr-TR-EmelNeural",
+    "uk":    "uk-UA-PolinaNeural",
+    "ur":    "ur-IN-GulNeural",
+    "uz":    "uz-UZ-MadinaNeural",
+    "vi":    "vi-VN-HoaiMyNeural",
+    "zh-CN": "zh-CN-XiaoxiaoNeural",
+    "zh-TW": "zh-TW-HsiaoChenNeural",
+    "zu":    "zu-ZA-ThandoNeural",
 }
 
 LANG_NAMES = {
-    "km": "ខ្មែរ (Khmer)", "en": "English", "ar": "Arabic", "zh-CN": "Chinese",
-    "zh-TW": "Chinese (Traditional)", "fr": "French", "de": "German",
-    "es": "Spanish", "hi": "Hindi", "ja": "Japanese", "ko": "Korean",
-    "pt": "Portuguese", "ru": "Russian", "th": "Thai", "vi": "Vietnamese",
-    "id": "Indonesian", "tr": "Turkish", "pl": "Polish", "nl": "Dutch",
-    "it": "Italian", "sv": "Swedish", "da": "Danish", "fi": "Finnish",
-    "no": "Norwegian", "cs": "Czech", "ro": "Romanian", "hu": "Hungarian",
-    "uk": "Ukrainian", "el": "Greek", "bn": "Bengali", "ta": "Tamil",
-    "te": "Telugu", "ml": "Malayalam", "ur": "Urdu", "my": "Myanmar",
-    "ne": "Nepali", "si": "Sinhala", "af": "Afrikaans", "sw": "Swahili",
-    "sk": "Slovak", "hr": "Croatian", "bg": "Bulgarian", "ms": "Malay",
-    "gu": "Gujarati", "mr": "Marathi", "iw": "Hebrew",
+    "af": "Afrikaans", "am": "Amharic (አማርኛ)", "ar": "Arabic (العربية)",
+    "az": "Azerbaijani", "bg": "Bulgarian", "bn": "Bengali (বাংলা)",
+    "bs": "Bosnian", "ca": "Catalan", "cs": "Czech", "cy": "Welsh",
+    "da": "Danish", "de": "German", "el": "Greek (Ελληνικά)",
+    "en": "English", "es": "Spanish", "et": "Estonian",
+    "fa": "Persian (فارسی)", "fi": "Finnish", "fil": "Filipino",
+    "fr": "French", "ga": "Irish", "gl": "Galician",
+    "gu": "Gujarati (ગુજરાતી)", "he": "Hebrew (עברית)", "hi": "Hindi (हिंदी)",
+    "hr": "Croatian", "hu": "Hungarian", "id": "Indonesian",
+    "is": "Icelandic", "it": "Italian", "ja": "Japanese (日本語)",
+    "jv": "Javanese", "ka": "Georgian (ქართული)", "kk": "Kazakh",
+    "km": "ខ្មែរ (Khmer)", "kn": "Kannada (ಕನ್ನಡ)", "ko": "Korean (한국어)",
+    "lo": "Lao (ລາວ)", "lt": "Lithuanian", "lv": "Latvian",
+    "mk": "Macedonian", "ml": "Malayalam (മലയാളം)", "mn": "Mongolian",
+    "mr": "Marathi (मराठी)", "ms": "Malay", "mt": "Maltese",
+    "my": "Myanmar (မြန်မာ)", "nb": "Norwegian", "ne": "Nepali (नेपाली)",
+    "nl": "Dutch", "pl": "Polish", "ps": "Pashto (پښتو)",
+    "pt": "Portuguese", "ro": "Romanian", "ru": "Russian (Русский)",
+    "si": "Sinhala (සිංහල)", "sk": "Slovak", "sl": "Slovenian",
+    "so": "Somali", "sq": "Albanian", "sr": "Serbian",
+    "su": "Sundanese", "sv": "Swedish", "sw": "Swahili",
+    "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)", "th": "Thai (ภาษาไทย)",
+    "tr": "Turkish", "uk": "Ukrainian", "ur": "Urdu (اردو)",
+    "uz": "Uzbek", "vi": "Vietnamese", "zh-CN": "Chinese (中文简体)",
+    "zh-TW": "Chinese (中文繁體)", "zu": "Zulu",
 }
 
-SCRIPT_LANG_MAP = [
-    (r'[\u1780-\u17FF]', 'km'),
-    (r'[\u0E00-\u0E7F]', 'th'),
-    (r'[\u0600-\u06FF]', 'ar'),
-    (r'[\u0900-\u097F]', 'hi'),
-    (r'[\u0980-\u09FF]', 'bn'),
-    (r'[\u0A80-\u0AFF]', 'gu'),
-    (r'[\u0C80-\u0CFF]', 'kn'),
-    (r'[\u0D00-\u0D7F]', 'ml'),
-    (r'[\u0B80-\u0BFF]', 'ta'),
-    (r'[\u0C00-\u0C7F]', 'te'),
-    (r'[\u0400-\u04FF]', 'ru'),
-    (r'[\u0370-\u03FF]', 'el'),
-    (r'[\u0530-\u058F]', 'hy'),
-    (r'[\u0590-\u05FF]', 'iw'),
-    (r'[\u0E80-\u0EFF]', 'lo'),
-    (r'[\u1000-\u109F]', 'my'),
-    (r'[\u0D80-\u0DFF]', 'si'),
-    (r'[\uAC00-\uD7FF]', 'ko'),
-    (r'[\u3040-\u30FF]', 'ja'),
-    (r'[\u4E00-\u9FFF]', 'zh-CN'),
+# Normalize langdetect output → our internal code
+NORMALIZE = {
+    "zh-cn": "zh-CN", "zh-tw": "zh-TW", "zh": "zh-CN",
+    "iw": "he", "no": "nb", "tl": "fil", "jw": "jv", "in": "id",
+}
+
+# Script-based detection using Unicode ranges (faster & more reliable than langdetect)
+SCRIPT_MAP = [
+    (r'[\u1780-\u17FF]', 'km'),        # Khmer
+    (r'[\u0E00-\u0E7F]', 'th'),        # Thai
+    (r'[\u0E80-\u0EFF]', 'lo'),        # Lao
+    (r'[\u1000-\u109F]', 'my'),        # Myanmar
+    (r'[\u1200-\u137F]', 'am'),        # Ethiopic → Amharic
+    (r'[\u10A0-\u10FF]', 'ka'),        # Georgian
+    (r'[\u0530-\u058F]', 'hy'),        # Armenian (no edge-tts, fallback en)
+    (r'[\u0590-\u05FF]', 'he'),        # Hebrew
+    (r'[\u0900-\u097F]', 'hi'),        # Devanagari → Hindi
+    (r'[\u0980-\u09FF]', 'bn'),        # Bengali
+    (r'[\u0A00-\u0A7F]', 'pa'),        # Gurmukhi → Punjabi
+    (r'[\u0A80-\u0AFF]', 'gu'),        # Gujarati
+    (r'[\u0B00-\u0B7F]', 'or'),        # Oriya
+    (r'[\u0B80-\u0BFF]', 'ta'),        # Tamil
+    (r'[\u0C00-\u0C7F]', 'te'),        # Telugu
+    (r'[\u0C80-\u0CFF]', 'kn'),        # Kannada
+    (r'[\u0D00-\u0D7F]', 'ml'),        # Malayalam
+    (r'[\u0D80-\u0DFF]', 'si'),        # Sinhala
+    (r'[\u0600-\u06FF]', 'ar'),        # Arabic script (ar/fa/ur/ps)
+    (r'[\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]', 'ar'),  # Arabic extended
+    (r'[\u0400-\u04FF]', 'ru'),        # Cyrillic → Russian (fallback)
+    (r'[\u0370-\u03FF]', 'el'),        # Greek
+    (r'[\u1800-\u18AF]', 'mn'),        # Mongolian script
+    (r'[\uAC00-\uD7FF]', 'ko'),        # Korean Hangul
+    (r'[\u3040-\u30FF]', 'ja'),        # Japanese Hiragana/Katakana
+    (r'[\u4E00-\u9FFF\u3400-\u4DBF]', 'zh-CN'),  # CJK
 ]
 
 GENDER_KEY = "voice_gender"
@@ -154,16 +241,33 @@ KEYBOARD = ReplyKeyboardMarkup(
 )
 
 def detect_language(text: str) -> str:
-    for pattern, lang in SCRIPT_LANG_MAP:
+    # 1. Try script-based detection first (instant)
+    for pattern, lang in SCRIPT_MAP:
         if re.search(pattern, text):
+            # Refine Arabic-script languages using langdetect
+            if lang == 'ar':
+                try:
+                    detected = langdetect_detect(text)
+                    detected = NORMALIZE.get(detected, detected)
+                    if detected in ('fa', 'ur', 'ps', 'ar'):
+                        return detected
+                except Exception:
+                    pass
+            # Refine Cyrillic languages using langdetect
+            if lang == 'ru':
+                try:
+                    detected = langdetect_detect(text)
+                    detected = NORMALIZE.get(detected, detected)
+                    if detected in ('ru', 'uk', 'bg', 'sr', 'mk', 'kk', 'mn'):
+                        return detected
+                except Exception:
+                    pass
             return lang
+
+    # 2. Fallback to langdetect for Latin-script languages
     try:
         detected = langdetect_detect(text)
-        if detected in ('zh-cn', 'zh'):
-            return 'zh-CN'
-        if detected == 'zh-tw':
-            return 'zh-TW'
-        return detected
+        return NORMALIZE.get(detected, detected)
     except Exception:
         return 'en'
 
@@ -181,10 +285,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data[GENDER_KEY] = "female"
     await update.message.reply_text(
         "សួស្ដី! ខ្ញុំជា Text-to-Voice Bot 🎙️\n\n"
-        "ផ្ញើអត្ថបទណាមួយ ហើយខ្ញុំបំប្លែងជាសំឡេង!\n"
-        "ជ្រើសរើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។\n\n"
-        "Send any text in any language and I'll speak it!\n"
-        "Choose male or female voice using the buttons below.",
+        "ផ្ញើអត្ថបទណាមួយក្នុងភាសាណាក៏បាន ហើយខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
+        " គាំទ្រ 80+ ភាសា រួមមាន ខ្មែរ, English, 中文, العربية, हिंदी...\n\n"
+        "ជ្រើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។",
         reply_markup=KEYBOARD
     )
 
@@ -204,11 +307,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     detected_lang = detect_language(text)
     gender = context.user_data.get(GENDER_KEY, "female")
     voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
-    voice = voice_map.get(detected_lang, FEMALE_VOICES.get(detected_lang, "en-US-JennyNeural"))
+
+    # Pick voice — if language not found, fall back to English
+    voice = voice_map.get(detected_lang) or voice_map.get('en')
     lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
     gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
 
-    # Fire chat action without waiting — start TTS immediately
     asyncio.create_task(
         context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
     )
