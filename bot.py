@@ -2,6 +2,7 @@ import os
 import re
 import asyncio
 import logging
+import subprocess
 from io import BytesIO
 import edge_tts
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
@@ -290,13 +291,27 @@ def detect_language(text: str) -> str:
     return 'en'
 
 async def synthesize_to_bytes(text: str, voice: str, rate: str = "-5%", pitch: str = "+0Hz") -> BytesIO:
-    buf = BytesIO()
+    # Generate MP3 from edge-tts
+    mp3_buf = BytesIO()
     communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
-            buf.write(chunk["data"])
-    buf.seek(0)
-    return buf
+            mp3_buf.write(chunk["data"])
+    mp3_buf.seek(0)
+
+    # Convert MP3 → OGG/OPUS (required by Telegram sendVoice)
+    result = await asyncio.get_event_loop().run_in_executor(
+        None,
+        lambda: subprocess.run(
+            ["ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
+             "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1"],
+            input=mp3_buf.read(),
+            capture_output=True
+        )
+    )
+    ogg_buf = BytesIO(result.stdout)
+    ogg_buf.seek(0)
+    return ogg_buf
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
