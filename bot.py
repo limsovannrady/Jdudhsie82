@@ -6,8 +6,8 @@ from io import BytesIO
 from collections import OrderedDict
 import edge_tts
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyParameters, constants
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyParameters, constants, InlineQueryResultCachedVoice
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, InlineQueryHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
 
 # Cache Telegram file_id for repeated text — avoids re-upload (instant resend)
@@ -36,6 +36,7 @@ logging.basicConfig(
 DetectorFactory.seed = 0
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+BUFFER_CHANNEL_ID = os.environ.get("BUFFER_CHANNEL_ID", "")
 
 # All available edge-tts voices — male and female per language
 MALE_VOICES = {
@@ -330,6 +331,42 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
     stdout, _ = await proc.communicate()
     return BytesIO(stdout)
 
+async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.inline_query
+    text = query.query.strip()
+
+    if not text or not BUFFER_CHANNEL_ID:
+        await query.answer([], cache_time=0)
+        return
+
+    detected_lang = detect_language(text)
+    voice = FEMALE_VOICES.get(detected_lang) or FEMALE_VOICES.get('en')
+    lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
+    cache_key = f"{voice}:{text}"
+    file_id = _cache_get(cache_key)
+
+    if not file_id:
+        try:
+            audio_buf = await synthesize_to_bytes(text, voice)
+            msg = await context.bot.send_voice(
+                chat_id=BUFFER_CHANNEL_ID,
+                voice=audio_buf,
+                caption=f"🌐 {lang_name}"
+            )
+            file_id = msg.voice.file_id
+            _cache_set(cache_key, file_id)
+        except Exception as e:
+            logging.error(f"Inline TTS error: {e}")
+            await query.answer([], cache_time=0)
+            return
+
+    result = InlineQueryResultCachedVoice(
+        id="1",
+        voice_file_id=file_id,
+        title=f"🔊 {text[:50]}"
+    )
+    await query.answer([result], cache_time=30)
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
 
@@ -441,5 +478,6 @@ app = (
 )
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.add_handler(InlineQueryHandler(handle_inline_query))
 app.add_error_handler(error_handler)
 app.run_polling(drop_pending_updates=True, timeout=30)
