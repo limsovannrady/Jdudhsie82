@@ -473,7 +473,7 @@ async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en', proc=None
         proc.stdin.close()
         await proc.communicate()
         return BytesIO(b'')
-    communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+0Hz")
+    communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+5Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             proc.stdin.write(chunk["data"])
@@ -493,7 +493,7 @@ async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
-    communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+0Hz")
+    communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+5Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             proc.stdin.write(chunk["data"])
