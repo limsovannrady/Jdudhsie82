@@ -1,6 +1,7 @@
 import os
 import re
-import tempfile
+import asyncio
+from io import BytesIO
 import edge_tts
 from langdetect import detect as langdetect_detect, DetectorFactory
 from telegram import Update, constants, ReplyKeyboardMarkup, KeyboardButton
@@ -146,12 +147,10 @@ SCRIPT_LANG_MAP = [
 
 GENDER_KEY = "voice_gender"
 
-def get_keyboard():
-    return ReplyKeyboardMarkup(
-        [[KeyboardButton("👨 សំឡេងប្រុស"), KeyboardButton("👩 សំឡេងស្រី")]],
-        resize_keyboard=True,
-        persistent=True
-    )
+KEYBOARD = ReplyKeyboardMarkup(
+    [[KeyboardButton("👨 សំឡេងប្រុស"), KeyboardButton("👩 សំឡេងស្រី")]],
+    resize_keyboard=True
+)
 
 def detect_language(text: str) -> str:
     for pattern, lang in SCRIPT_LANG_MAP:
@@ -167,21 +166,25 @@ def detect_language(text: str) -> str:
     except Exception:
         return 'en'
 
-async def synthesize(text: str, voice: str, output_path: str):
+async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
+    buf = BytesIO()
     communicate = edge_tts.Communicate(text, voice)
-    await communicate.save(output_path)
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            buf.write(chunk["data"])
+    buf.seek(0)
+    return buf
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if GENDER_KEY not in context.user_data:
         context.user_data[GENDER_KEY] = "female"
-    await context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.TYPING)
     await update.message.reply_text(
         "សួស្ដី! ខ្ញុំជា Text-to-Voice Bot 🎙️\n\n"
         "ផ្ញើអត្ថបទណាមួយ ហើយខ្ញុំបំប្លែងជាសំឡេង!\n"
         "ជ្រើសរើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។\n\n"
         "Send any text in any language and I'll speak it!\n"
         "Choose male or female voice using the buttons below.",
-        reply_markup=get_keyboard()
+        reply_markup=KEYBOARD
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -189,48 +192,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "👨 សំឡេងប្រុស":
         context.user_data[GENDER_KEY] = "male"
-        await update.message.reply_text("✅ បានប្តូរទៅសំឡេងប្រុស (Male voice)", reply_markup=get_keyboard())
+        await update.message.reply_text("✅ បានប្តូរទៅសំឡេងប្រុស (Male voice)", reply_markup=KEYBOARD)
         return
 
     if text == "👩 សំឡេងស្រី":
         context.user_data[GENDER_KEY] = "female"
-        await update.message.reply_text("✅ បានប្តូរទៅសំឡេងស្រី (Female voice)", reply_markup=get_keyboard())
+        await update.message.reply_text("✅ បានប្តូរទៅសំឡេងស្រី (Female voice)", reply_markup=KEYBOARD)
         return
 
-    await context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
+    detected_lang = detect_language(text)
+    gender = context.user_data.get(GENDER_KEY, "female")
+    voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
+    voice = voice_map.get(detected_lang, FEMALE_VOICES.get(detected_lang, "en-US-JennyNeural"))
+    lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
+    gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
 
-    try:
-        detected_lang = detect_language(text)
-        gender = context.user_data.get(GENDER_KEY, "female")
+    audio_buf, _ = await asyncio.gather(
+        synthesize_to_bytes(text, voice),
+        context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
+    )
 
-        voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
-        voice = voice_map.get(detected_lang, FEMALE_VOICES.get(detected_lang, "en-US-JennyNeural"))
-
-        lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
-        gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
-
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_path = tmp.name
-
-        await synthesize(text, voice, tmp_path)
-
-        with open(tmp_path, "rb") as audio_file:
-            await update.message.reply_voice(
-                voice=audio_file,
-                caption=f"🌐 {lang_name} | {gender_label}",
-                reply_markup=get_keyboard()
-            )
-
-        os.unlink(tmp_path)
-
-    except Exception as e:
-        print(f"TTS Error: {e}")
-        await update.message.reply_text(
-            "Sorry, I couldn't convert that text to speech. Please try again.",
-            reply_markup=get_keyboard()
-        )
+    await update.message.reply_voice(
+        voice=audio_buf,
+        caption=f"🌐 {lang_name} | {gender_label}",
+        reply_markup=KEYBOARD
+    )
 
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.run_polling()
+app.run_polling(drop_pending_updates=True)
