@@ -1,5 +1,6 @@
 import os
 import re
+import unicodedata
 import asyncio
 import logging
 from io import BytesIO
@@ -9,6 +10,19 @@ from langdetect import detect as langdetect_detect, detect_langs, DetectorFactor
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyParameters, constants
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
+
+def strip_unspeakable(text: str) -> str:
+    """Remove emojis and other symbols that TTS engines cannot pronounce."""
+    result = []
+    for ch in text:
+        cat = unicodedata.category(ch)
+        # Keep letters, numbers, punctuation, separators (spaces/newlines)
+        if cat.startswith(('L', 'N', 'P', 'Z')):
+            result.append(ch)
+        elif ch in ('\n', '\r', '\t'):
+            result.append(ch)
+        # Skip So (Other Symbol) = emoji, Sm, Sc, Sk, etc.
+    return ''.join(result)
 
 # Cache Telegram file_id for repeated text — avoids re-upload (instant resend)
 _FILE_ID_CACHE: OrderedDict[str, str] = OrderedDict()
@@ -429,6 +443,11 @@ async def _start_ffmpeg():
 async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
     if proc is None:
         proc = await _start_ffmpeg()
+    text = strip_unspeakable(text).strip()
+    if not text:
+        proc.stdin.close()
+        await proc.communicate()
+        return BytesIO(b'')
     communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
@@ -439,6 +458,9 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
 
 async def _synth_segment_pcm(text: str, voice: str) -> bytes:
     """Synthesize one segment to raw PCM s16le 24000Hz mono."""
+    text = strip_unspeakable(text).strip()
+    if not text:
+        return b''
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
         "-ac", "1", "-ar", "24000", "-f", "s16le", "pipe:1",
