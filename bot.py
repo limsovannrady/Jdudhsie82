@@ -12,16 +12,22 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 from telegram.request import HTTPXRequest
 
 def strip_unspeakable(text: str) -> str:
-    """Remove emojis and other symbols that TTS engines cannot pronounce."""
+    """Remove emojis and other symbols that TTS engines cannot pronounce.
+    
+    Keeps: letters (L*), combining marks (M* — essential for Khmer, Thai,
+    Devanagari, Arabic etc.), numbers (N*), punctuation (P*), separators (Z*).
+    Strips: symbols (S*) which includes emojis, currency, math symbols, etc.
+    Also strips control/format chars (C*) except whitespace.
+    """
     result = []
     for ch in text:
         cat = unicodedata.category(ch)
-        # Keep letters, numbers, punctuation, separators (spaces/newlines)
-        if cat.startswith(('L', 'N', 'P', 'Z')):
+        # Keep letters, combining marks, numbers, punctuation, separators
+        if cat.startswith(('L', 'M', 'N', 'P', 'Z')):
             result.append(ch)
-        elif ch in ('\n', '\r', '\t'):
+        elif ch in ('\n', '\r', '\t', ' '):
             result.append(ch)
-        # Skip So (Other Symbol) = emoji, Sm, Sc, Sk, etc.
+        # Drop: S* (symbols/emoji), C* (control/format) except spaces above
     return ''.join(result)
 
 def has_speakable_content(text: str) -> bool:
