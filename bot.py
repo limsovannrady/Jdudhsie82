@@ -6,7 +6,7 @@ import subprocess
 from io import BytesIO
 import edge_tts
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
-from telegram import Update, constants, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
 
@@ -290,14 +290,14 @@ def detect_language(text: str) -> str:
 
     return 'en'
 
-async def synthesize_to_bytes(text: str, voice: str, rate: str = "-5%", pitch: str = "+0Hz") -> BytesIO:
-    # Generate MP3 from edge-tts
+async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
+    # Generate MP3 from edge-tts (standard speed)
     mp3_buf = BytesIO()
-    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+    communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             mp3_buf.write(chunk["data"])
-    mp3_buf.seek(0)
+    mp3_data = mp3_buf.getvalue()
 
     # Convert MP3 → OGG/OPUS (required by Telegram sendVoice)
     result = await asyncio.get_event_loop().run_in_executor(
@@ -305,7 +305,7 @@ async def synthesize_to_bytes(text: str, voice: str, rate: str = "-5%", pitch: s
         lambda: subprocess.run(
             ["ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
              "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1"],
-            input=mp3_buf.read(),
+            input=mp3_data,
             capture_output=True
         )
     )
@@ -319,73 +319,36 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if GENDER_KEY not in context.user_data:
         context.user_data[GENDER_KEY] = "female"
-
-    welcome_text = "សួស្ដី! ខ្ញុំជា Text-to-Voice Bot។ ផ្ញើអត្ថបទណាមួយ ខ្ញុំនឹងបំប្លែងជាសំឡេងពិរោះ!"
-    voice = FEMALE_VOICES.get("km")
-
-    asyncio.create_task(
-        context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
+    await update.message.reply_text(
+        "🎙️ Text-to-Voice Bot\n\n"
+        "ផ្ញើអត្ថបទណាមួយ ខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
+        "🌐 គាំទ្រ 80+ ភាសា: ខ្មែរ, English, 中文, العربية, हिंदी...\n\n"
+        "ជ្រើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។",
+        reply_markup=KEYBOARD
     )
-
-    try:
-        audio_buf = await synthesize_to_bytes(welcome_text, voice)
-        await update.message.reply_voice(
-            voice=audio_buf,
-            caption=(
-                "🎙️ Text-to-Voice Bot\n\n"
-                "ផ្ញើអត្ថបទណាមួយ ខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
-                "🌐 គាំទ្រ 80+ ភាសា: ខ្មែរ, English, 中文, العربية, हिंदी...\n\n"
-                "ជ្រើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។"
-            ),
-            reply_markup=KEYBOARD
-        )
-    except Exception as e:
-        logging.error(f"Start voice error: {e}")
-        await update.message.reply_text(
-            "🎙️ Text-to-Voice Bot\n\nផ្ញើអត្ថបទណាមួយ ខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
-            "🌐 គាំទ្រ 80+ ភាសា: ខ្មែរ, English, 中文, العربية, हिंदी...",
-            reply_markup=KEYBOARD
-        )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if text == "👨 សំឡេងប្រុស":
         context.user_data[GENDER_KEY] = "male"
-        confirm_text = "បានប្តូរទៅសំឡេងប្រុស"
-        voice = MALE_VOICES.get("km")
-        asyncio.create_task(
-            context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
-        )
-        audio_buf = await synthesize_to_bytes(confirm_text, voice)
-        await update.message.reply_voice(voice=audio_buf, caption="✅ បានប្តូរទៅ 👨 សំឡេងប្រុស", reply_markup=KEYBOARD)
+        await update.message.reply_text("✅ បានប្តូរទៅ 👨 សំឡេងប្រុស", reply_markup=KEYBOARD)
         return
 
     if text == "👩 សំឡេងស្រី":
         context.user_data[GENDER_KEY] = "female"
-        confirm_text = "បានប្តូរទៅសំឡេងស្រី"
-        voice = FEMALE_VOICES.get("km")
-        asyncio.create_task(
-            context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
-        )
-        audio_buf = await synthesize_to_bytes(confirm_text, voice)
-        await update.message.reply_voice(voice=audio_buf, caption="✅ បានប្តូរទៅ 👩 សំឡេងស្រី", reply_markup=KEYBOARD)
+        await update.message.reply_text("✅ បានប្តូរទៅ 👩 សំឡេងស្រី", reply_markup=KEYBOARD)
         return
 
     detected_lang = detect_language(text)
     gender = context.user_data.get(GENDER_KEY, "female")
     voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
 
-    # Pick voice — if language not found, fall back to English
     voice = voice_map.get(detected_lang) or voice_map.get('en')
     lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
     gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
 
     logging.info(f"Detected lang: {detected_lang} | Voice: {voice} | Text: {text[:30]}")
-
-    asyncio.create_task(
-        context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
-    )
 
     try:
         audio_buf = await synthesize_to_bytes(text, voice)
@@ -397,7 +360,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Error synthesizing voice: {e}")
         await update.message.reply_text(
-            f"⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង។ សូមព្យាយាមម្តងទៀត។\nError: {e}",
+            f"⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង។ សូមព្យាយាមម្តងទៀត។",
             reply_markup=KEYBOARD
         )
 
