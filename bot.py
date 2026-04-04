@@ -4,7 +4,7 @@ import asyncio
 import logging
 from io import BytesIO
 import edge_tts
-from langdetect import detect as langdetect_detect, DetectorFactory
+from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
 from telegram import Update, constants, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
@@ -247,7 +247,7 @@ KEYBOARD = ReplyKeyboardMarkup(
 )
 
 def detect_language(text: str) -> str:
-    # 1. Try script-based detection first (instant)
+    # 1. Try script-based detection first (instant & reliable)
     for pattern, lang in SCRIPT_MAP:
         if re.search(pattern, text):
             # Refine Arabic-script languages using langdetect
@@ -270,12 +270,24 @@ def detect_language(text: str) -> str:
                     pass
             return lang
 
-    # 2. Fallback to langdetect for Latin-script languages
-    try:
-        detected = langdetect_detect(text)
-        return NORMALIZE.get(detected, detected)
-    except Exception:
+    # 2. For Latin-script text: use confidence threshold
+    # Very short texts are unreliable — default to English
+    stripped = text.strip()
+    if len(stripped) < 15 or len(stripped.split()) < 3:
         return 'en'
+
+    try:
+        langs = detect_langs(text)
+        if langs:
+            top = langs[0]
+            lang_code = NORMALIZE.get(top.lang, top.lang)
+            # Accept detection only if confidence >= 0.70, else default English
+            if top.prob >= 0.70:
+                return lang_code
+    except Exception:
+        pass
+
+    return 'en'
 
 async def synthesize_to_bytes(text: str, voice: str, rate: str = "-5%", pitch: str = "+0Hz") -> BytesIO:
     buf = BytesIO()
