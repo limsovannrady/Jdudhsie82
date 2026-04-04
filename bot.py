@@ -337,10 +337,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if GENDER_KEY not in context.user_data:
         context.user_data[GENDER_KEY] = "female"
     await update.message.reply_text(
-        "🎙️ Text-to-Voice Bot\n\n"
-        "ផ្ញើអត្ថបទណាមួយ ខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
-        "🌐 គាំទ្រ 80+ ភាសា: ខ្មែរ, English, 中文, العربية, हिंदी...\n\n"
-        "ជ្រើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។",
+        '<tg-emoji emoji-id="5472055112702629499">👋</tg-emoji> <b>សួស្តី</b> K21b.Lim Sovannrady\n\n'
+        '<b>ខ្ញុំជា Text to voice bot</b>\n\n'
+        '<tg-emoji emoji-id="5471978009449731768">👉</tg-emoji><i>គ្រាន់តែ សរសេរអក្សរណាមួយ ហើយ ខ្ញុំនឹងបំប្លែងជាសំឡេងដោយស្វ័យប្រវត្តិ។</i>',
+        parse_mode='HTML',
         reply_markup=KEYBOARD
     )
 
