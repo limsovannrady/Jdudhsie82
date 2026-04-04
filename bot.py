@@ -1,7 +1,8 @@
 import os
+import re
 import tempfile
 from gtts import gTTS
-from langdetect import detect, DetectorFactory
+from langdetect import detect as langdetect_detect, DetectorFactory
 from telegram import Update, constants
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
@@ -25,26 +26,69 @@ LANG_NAMES = {
     "sv": "Swedish", "sw": "Swahili", "ta": "Tamil", "te": "Telugu",
     "th": "Thai", "tl": "Filipino", "tr": "Turkish", "uk": "Ukrainian",
     "ur": "Urdu", "vi": "Vietnamese", "zh-CN": "Chinese (Simplified)",
-    "zh-TW": "Chinese (Traditional)", "km": "Khmer"
+    "zh-TW": "Chinese (Traditional)"
 }
+
+SCRIPT_LANG_MAP = [
+    (r'[\u1780-\u17FF]', 'km'),        # Khmer
+    (r'[\u0E00-\u0E7F]', 'th'),        # Thai
+    (r'[\u0600-\u06FF]', 'ar'),        # Arabic
+    (r'[\u0900-\u097F]', 'hi'),        # Devanagari → Hindi
+    (r'[\u0980-\u09FF]', 'bn'),        # Bengali
+    (r'[\u0A80-\u0AFF]', 'gu'),        # Gujarati
+    (r'[\u0C80-\u0CFF]', 'kn'),        # Kannada
+    (r'[\u0D00-\u0D7F]', 'ml'),        # Malayalam
+    (r'[\u0B80-\u0BFF]', 'ta'),        # Tamil
+    (r'[\u0C00-\u0C7F]', 'te'),        # Telugu
+    (r'[\u0400-\u04FF]', 'ru'),        # Cyrillic → Russian
+    (r'[\u0370-\u03FF]', 'el'),        # Greek
+    (r'[\u0530-\u058F]', 'hy'),        # Armenian
+    (r'[\u10A0-\u10FF]', 'ka'),        # Georgian
+    (r'[\u0700-\u074F]', 'ur'),        # Syriac/Urdu hint
+    (r'[\u0750-\u077F]', 'ar'),        # Arabic Supplement
+    (r'[\uFB50-\uFDFF]', 'ar'),        # Arabic Presentation
+    (r'[\u0590-\u05FF]', 'iw'),        # Hebrew
+    (r'[\u0E80-\u0EFF]', 'lo'),        # Lao
+    (r'[\u1000-\u109F]', 'my'),        # Myanmar/Burmese
+    (r'[\u0D80-\u0DFF]', 'si'),        # Sinhala
+    (r'[\uAC00-\uD7FF]', 'ko'),        # Korean Hangul
+    (r'[\u3040-\u30FF]', 'ja'),        # Japanese Hiragana/Katakana
+    (r'[\u4E00-\u9FFF]', 'zh-CN'),     # CJK (Chinese/Japanese/Korean)
+    (r'[\u0900-\u097F]', 'ne'),        # Devanagari can be Nepali too
+]
+
+def detect_language(text: str) -> str:
+    for pattern, lang in SCRIPT_LANG_MAP:
+        if re.search(pattern, text):
+            return lang
+    try:
+        detected = langdetect_detect(text)
+        if detected in ('zh-cn', 'zh'):
+            return 'zh-CN'
+        if detected == 'zh-tw':
+            return 'zh-TW'
+        return detected
+    except Exception:
+        return 'en'
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.TYPING)
     await update.message.reply_text(
         "Hello! I'm a Text-to-Voice bot.\n\n"
         "Send me any text in any language and I'll convert it to speech!\n\n"
-        "Supported: English, Arabic, Chinese, French, Spanish, Hindi, Japanese, Korean, Russian, and 50+ more languages."
+        "Supports: Khmer, English, Arabic, Chinese, French, Spanish, Hindi, Japanese, Korean, Russian, Thai, and 50+ more languages."
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Just send me any text message and I'll read it aloud for you!\n\n"
-        "I automatically detect the language, so no setup needed.\n\n"
-        "Example:\n"
-        "- Hello world\n"
-        "- مرحبا بالعالم\n"
-        "- 你好世界\n"
-        "- Bonjour le monde"
+        "Just send me any text message and I'll read it aloud!\n\n"
+        "I automatically detect the language — no setup needed.\n\n"
+        "Examples:\n"
+        "- Hello world  (English)\n"
+        "- សួស្ដី (Khmer)\n"
+        "- مرحبا بالعالم (Arabic)\n"
+        "- 你好世界 (Chinese)\n"
+        "- Bonjour le monde (French)"
     )
 
 async def text_to_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,15 +99,9 @@ async def text_to_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
 
     try:
-        detected_lang = detect(text)
+        detected_lang = detect_language(text)
 
-        gtts_lang = detected_lang
-        if detected_lang == "zh-cn":
-            gtts_lang = "zh-CN"
-        elif detected_lang == "zh-tw":
-            gtts_lang = "zh-TW"
-
-        tts = gTTS(text=text, lang=gtts_lang, slow=False)
+        tts = gTTS(text=text, lang=detected_lang, slow=False)
 
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             tmp_path = tmp.name
@@ -81,15 +119,15 @@ async def text_to_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         error_msg = str(e)
+        print(f"Error: {e}")
         if "Language not supported" in error_msg or "is not supported" in error_msg:
             await update.message.reply_text(
-                f"Sorry, this language is not supported for text-to-speech yet."
+                "Sorry, this language is not supported for text-to-speech yet."
             )
         else:
             await update.message.reply_text(
                 "Sorry, I couldn't convert that text to speech. Please try again."
             )
-        print(f"Error: {e}")
 
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
