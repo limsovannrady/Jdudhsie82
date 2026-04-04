@@ -6,7 +6,7 @@ from io import BytesIO
 from collections import OrderedDict
 import edge_tts
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyParameters, constants
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
 
@@ -308,9 +308,8 @@ def detect_language(text: str) -> str:
 
     return 'en'
 
-async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
-    # Start ffmpeg async process (ready to receive MP3 stream)
-    proc = await asyncio.create_subprocess_exec(
+async def _start_ffmpeg():
+    return await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
         "-c:a", "libopus", "-b:a", "32k", "-ac", "1", "-ar", "16000", "-f", "ogg", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
@@ -318,14 +317,16 @@ async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
         stderr=asyncio.subprocess.DEVNULL
     )
 
-    # Stream edge-tts MP3 directly into ffmpeg stdin (no full buffering)
+async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
+    if proc is None:
+        proc = await _start_ffmpeg()
+
     communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             proc.stdin.write(chunk["data"])
     proc.stdin.close()
 
-    # Read OGG/OPUS output
     stdout, _ = await proc.communicate()
     return BytesIO(stdout)
 
@@ -358,6 +359,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = text.strip()
 
+    # Start ffmpeg process immediately (parallel with language detection)
+    ffmpeg_task = asyncio.create_task(_start_ffmpeg())
+
+    # Detect language while ffmpeg is starting up
     detected_lang = detect_language(text)
     gender = context.user_data.get(GENDER_KEY, "female")
     voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
@@ -372,28 +377,40 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     logging.info(f"Detected: {detected_lang} | Chars: {len(text)} | Cache: {'HIT' if cached_file_id else 'MISS'}")
 
+    quote = ReplyParameters(message_id=update.message.message_id)
+
     try:
         if cached_file_id:
-            # Instant — no upload needed
+            ffmpeg_task.cancel()
             await update.message.reply_voice(
                 voice=cached_file_id,
                 caption=caption,
-                reply_markup=KEYBOARD
+                reply_markup=KEYBOARD,
+                reply_parameters=quote
             )
         else:
-            audio_buf = await synthesize_to_bytes(text, voice)
+            # Show recording indicator while synthesizing
+            asyncio.create_task(
+                context.bot.send_chat_action(
+                    update.effective_chat.id,
+                    constants.ChatAction.RECORD_VOICE
+                )
+            )
+            proc = await ffmpeg_task
+            audio_buf = await synthesize_to_bytes(text, voice, proc=proc)
             msg = await update.message.reply_voice(
                 voice=audio_buf,
                 caption=caption,
-                reply_markup=KEYBOARD
+                reply_markup=KEYBOARD,
+                reply_parameters=quote
             )
-            # Save file_id for next time
             _cache_set(cache_key, msg.voice.file_id)
     except Exception as e:
         logging.error(f"Error synthesizing voice: {e}")
         await update.message.reply_text(
             "⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង។ សូមព្យាយាមម្តងទៀត។",
-            reply_markup=KEYBOARD
+            reply_markup=KEYBOARD,
+            reply_parameters=quote
         )
 
 request = HTTPXRequest(
