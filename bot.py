@@ -337,6 +337,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("✅ បានប្តូរទៅ 👩 សំឡេងស្រី", reply_markup=KEYBOARD)
         return
 
+    # Trim and limit text to 500 chars for speed
+    text = text.strip()
+    truncated = False
+    if len(text) > 500:
+        text = text[:500].rsplit(' ', 1)[0]
+        truncated = True
+
     detected_lang = detect_language(text)
     gender = context.user_data.get(GENDER_KEY, "female")
     voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
@@ -344,20 +351,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     voice = voice_map.get(detected_lang) or voice_map.get('en')
     lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
     gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
+    caption = f"🌐 {lang_name} | {gender_label}"
+    if truncated:
+        caption += " | ✂️ 500"
 
-    logging.info(f"Detected lang: {detected_lang} | Voice: {voice} | Text: {text[:30]}")
+    logging.info(f"Detected lang: {detected_lang} | Voice: {voice} | Chars: {len(text)}")
 
     try:
         audio_buf = await synthesize_to_bytes(text, voice)
         await update.message.reply_voice(
             voice=audio_buf,
-            caption=f"🌐 {lang_name} | {gender_label}",
+            caption=caption,
             reply_markup=KEYBOARD
         )
     except Exception as e:
         logging.error(f"Error synthesizing voice: {e}")
         await update.message.reply_text(
-            f"⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង។ សូមព្យាយាមម្តងទៀត។",
+            "⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង។ សូមព្យាយាមម្តងទៀត។",
             reply_markup=KEYBOARD
         )
 
@@ -366,6 +376,7 @@ request = HTTPXRequest(
     read_timeout=60,
     write_timeout=60,
     connect_timeout=5,
+    http_version="2",
 )
 
 app = (
