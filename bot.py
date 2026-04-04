@@ -50,9 +50,9 @@ MALE_VOICES = {
     "cs":    "cs-CZ-AntoninNeural",
     "cy":    "cy-GB-AledNeural",
     "da":    "da-DK-JeppeNeural",
-    "de":    "de-DE-ConradNeural",
+    "de":    "de-DE-KillianNeural",
     "el":    "el-GR-NestorasNeural",
-    "en":    "en-US-GuyNeural",
+    "en":    "en-US-ChristopherNeural",
     "es":    "es-ES-AlvaroNeural",
     "et":    "et-EE-KertNeural",
     "fa":    "fa-IR-FaridNeural",
@@ -68,7 +68,7 @@ MALE_VOICES = {
     "hu":    "hu-HU-TamasNeural",
     "id":    "id-ID-ArdiNeural",
     "is":    "is-IS-GunnarNeural",
-    "it":    "it-IT-DiegoNeural",
+    "it":    "it-IT-GiuseppeNeural",
     "ja":    "ja-JP-KeitaNeural",
     "jv":    "jv-ID-DimasNeural",
     "ka":    "ka-GE-GiorgiNeural",
@@ -111,7 +111,7 @@ MALE_VOICES = {
     "ur":    "ur-IN-SalmanNeural",
     "uz":    "uz-UZ-SardorNeural",
     "vi":    "vi-VN-NamMinhNeural",
-    "zh-CN": "zh-CN-YunxiNeural",
+    "zh-CN": "zh-CN-YunyangNeural",
     "zh-TW": "zh-TW-YunJheNeural",
     "zu":    "zu-ZA-ThembaNeural",
 }
@@ -128,9 +128,9 @@ FEMALE_VOICES = {
     "cs":    "cs-CZ-VlastaNeural",
     "cy":    "cy-GB-NiaNeural",
     "da":    "da-DK-ChristelNeural",
-    "de":    "de-DE-KatjaNeural",
+    "de":    "de-DE-AmalaNeural",
     "el":    "el-GR-AthinaNeural",
-    "en":    "en-US-JennyNeural",
+    "en":    "en-US-AriaNeural",
     "es":    "es-ES-ElviraNeural",
     "et":    "et-EE-AnuNeural",
     "fa":    "fa-IR-DilaraNeural",
@@ -146,7 +146,7 @@ FEMALE_VOICES = {
     "hu":    "hu-HU-NoemiNeural",
     "id":    "id-ID-GadisNeural",
     "is":    "is-IS-GudrunNeural",
-    "it":    "it-IT-ElsaNeural",
+    "it":    "it-IT-IsabellaNeural",
     "ja":    "ja-JP-NanamiNeural",
     "jv":    "jv-ID-SitiNeural",
     "ka":    "ka-GE-EkaNeural",
@@ -420,7 +420,7 @@ def detect_language(text: str) -> str:
 async def _start_ffmpeg():
     return await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
-        "-c:a", "libopus", "-b:a", "32k", "-ac", "1", "-ar", "16000", "-f", "ogg", "pipe:1",
+        "-c:a", "libopus", "-b:a", "64k", "-ac", "1", "-ar", "24000", "-f", "ogg", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL
@@ -438,10 +438,10 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
     return BytesIO(stdout)
 
 async def _synth_segment_pcm(text: str, voice: str) -> bytes:
-    """Synthesize one segment to raw PCM s16le 16000Hz mono."""
+    """Synthesize one segment to raw PCM s16le 24000Hz mono."""
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
-        "-ac", "1", "-ar", "16000", "-f", "s16le", "pipe:1",
+        "-ac", "1", "-ar", "24000", "-f", "s16le", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
@@ -457,8 +457,8 @@ async def _synth_segment_pcm(text: str, voice: str) -> bytes:
 async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
     """Encode concatenated PCM bytes to OGG Opus."""
     proc = await asyncio.create_subprocess_exec(
-        "ffmpeg", "-y", "-f", "s16le", "-ac", "1", "-ar", "16000", "-i", "pipe:0",
-        "-c:a", "libopus", "-b:a", "32k", "-f", "ogg", "pipe:1",
+        "ffmpeg", "-y", "-f", "s16le", "-ac", "1", "-ar", "24000", "-i", "pipe:0",
+        "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
