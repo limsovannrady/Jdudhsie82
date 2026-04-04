@@ -461,12 +461,9 @@ async def _start_ffmpeg():
 
 def voice_rate(lang: str) -> str:
     """Return the TTS speaking rate for a language.
-    Khmer stays at default (already sounds natural).
-    All other languages are slowed slightly for clarity.
+    All languages use the same natural default rate.
     """
-    if lang == 'km':
-        return '+0%'
-    return '-10%'
+    return '+0%'
 
 async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en', proc=None) -> BytesIO:
     if proc is None:
