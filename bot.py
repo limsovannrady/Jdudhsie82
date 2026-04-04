@@ -24,6 +24,10 @@ def strip_unspeakable(text: str) -> str:
         # Skip So (Other Symbol) = emoji, Sm, Sc, Sk, etc.
     return ''.join(result)
 
+def has_speakable_content(text: str) -> bool:
+    """Return True only if the text contains at least one letter or digit."""
+    return bool(re.search(r'\w', text, re.UNICODE))
+
 # Cache Telegram file_id for repeated text — avoids re-upload (instant resend)
 _FILE_ID_CACHE: OrderedDict[str, str] = OrderedDict()
 _CACHE_MAX = 200
@@ -444,7 +448,7 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
     if proc is None:
         proc = await _start_ffmpeg()
     text = strip_unspeakable(text).strip()
-    if not text:
+    if not text or not has_speakable_content(text):
         proc.stdin.close()
         await proc.communicate()
         return BytesIO(b'')
@@ -459,7 +463,7 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
 async def _synth_segment_pcm(text: str, voice: str) -> bytes:
     """Synthesize one segment to raw PCM s16le 24000Hz mono."""
     text = strip_unspeakable(text).strip()
-    if not text:
+    if not text or not has_speakable_content(text):
         return b''
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
@@ -488,13 +492,23 @@ async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
     stdout, _ = await proc.communicate(input=pcm)
     return BytesIO(stdout)
 
+async def _safe_synth_segment_pcm(text: str, voice: str) -> bytes:
+    """Like _synth_segment_pcm but swallows errors and returns empty bytes."""
+    try:
+        return await _synth_segment_pcm(text, voice)
+    except Exception as e:
+        logging.warning(f"Skipping segment due to error: {e!r} | text={text[:30]!r}")
+        return b''
+
 async def synthesize_mixed(segments: list, voice_map: dict) -> BytesIO:
     """Synthesize multiple-language segments in parallel, return one OGG."""
     tasks = [
-        _synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'))
+        _safe_synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'))
         for chunk, lang in segments
-        if chunk.strip()
+        if strip_unspeakable(chunk).strip() and has_speakable_content(strip_unspeakable(chunk))
     ]
+    if not tasks:
+        return BytesIO(b'')
     pcm_parts = await asyncio.gather(*tasks)
     return await _pcm_to_ogg(b''.join(pcm_parts))
 
