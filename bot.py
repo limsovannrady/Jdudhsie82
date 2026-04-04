@@ -2,7 +2,6 @@ import os
 import re
 import asyncio
 import logging
-import subprocess
 from io import BytesIO
 import edge_tts
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
@@ -291,27 +290,25 @@ def detect_language(text: str) -> str:
     return 'en'
 
 async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
-    # Generate MP3 from edge-tts (standard speed)
-    mp3_buf = BytesIO()
+    # Start ffmpeg async process (ready to receive MP3 stream)
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
+        "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL
+    )
+
+    # Stream edge-tts MP3 directly into ffmpeg stdin (no full buffering)
     communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
-            mp3_buf.write(chunk["data"])
-    mp3_data = mp3_buf.getvalue()
+            proc.stdin.write(chunk["data"])
+    proc.stdin.close()
 
-    # Convert MP3 → OGG/OPUS (required by Telegram sendVoice)
-    result = await asyncio.get_event_loop().run_in_executor(
-        None,
-        lambda: subprocess.run(
-            ["ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
-             "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1"],
-            input=mp3_data,
-            capture_output=True
-        )
-    )
-    ogg_buf = BytesIO(result.stdout)
-    ogg_buf.seek(0)
-    return ogg_buf
+    # Read OGG/OPUS output
+    stdout, _ = await proc.communicate()
+    return BytesIO(stdout)
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
