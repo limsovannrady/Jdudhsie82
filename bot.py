@@ -271,9 +271,9 @@ def detect_language(text: str) -> str:
     except Exception:
         return 'en'
 
-async def synthesize_to_bytes(text: str, voice: str) -> BytesIO:
+async def synthesize_to_bytes(text: str, voice: str, rate: str = "-5%", pitch: str = "+0Hz") -> BytesIO:
     buf = BytesIO()
-    communicate = edge_tts.Communicate(text, voice)
+    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             buf.write(chunk["data"])
@@ -296,12 +296,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "👨 សំឡេងប្រុស":
         context.user_data[GENDER_KEY] = "male"
-        await update.message.reply_text("✅ បានប្តូរទៅសំឡេងប្រុស (Male voice)", reply_markup=KEYBOARD)
+        confirm_text = "បានប្តូរទៅសំឡេងប្រុស"
+        voice = MALE_VOICES.get("km")
+        asyncio.create_task(
+            context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
+        )
+        audio_buf = await synthesize_to_bytes(confirm_text, voice)
+        await update.message.reply_voice(voice=audio_buf, caption="✅ បានប្តូរទៅ 👨 សំឡេងប្រុស", reply_markup=KEYBOARD)
         return
 
     if text == "👩 សំឡេងស្រី":
         context.user_data[GENDER_KEY] = "female"
-        await update.message.reply_text("✅ បានប្តូរទៅសំឡេងស្រី (Female voice)", reply_markup=KEYBOARD)
+        confirm_text = "បានប្តូរទៅសំឡេងស្រី"
+        voice = FEMALE_VOICES.get("km")
+        asyncio.create_task(
+            context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
+        )
+        audio_buf = await synthesize_to_bytes(confirm_text, voice)
+        await update.message.reply_voice(voice=audio_buf, caption="✅ បានប្តូរទៅ 👩 សំឡេងស្រី", reply_markup=KEYBOARD)
         return
 
     detected_lang = detect_language(text)
