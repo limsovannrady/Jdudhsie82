@@ -459,7 +459,16 @@ async def _start_ffmpeg():
         stderr=asyncio.subprocess.DEVNULL
     )
 
-async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
+def voice_rate(lang: str) -> str:
+    """Return the TTS speaking rate for a language.
+    Khmer stays at default (already sounds natural).
+    All other languages are slowed slightly for clarity.
+    """
+    if lang == 'km':
+        return '+0%'
+    return '-10%'
+
+async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en', proc=None) -> BytesIO:
     if proc is None:
         proc = await _start_ffmpeg()
     text = strip_unspeakable(text).strip()
@@ -467,7 +476,7 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
         proc.stdin.close()
         await proc.communicate()
         return BytesIO(b'')
-    communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
+    communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             proc.stdin.write(chunk["data"])
@@ -475,7 +484,7 @@ async def synthesize_to_bytes(text: str, voice: str, proc=None) -> BytesIO:
     stdout, _ = await proc.communicate()
     return BytesIO(stdout)
 
-async def _synth_segment_pcm(text: str, voice: str) -> bytes:
+async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
     """Synthesize one segment to raw PCM s16le 24000Hz mono."""
     text = strip_unspeakable(text).strip()
     if not text or not has_speakable_content(text):
@@ -487,7 +496,7 @@ async def _synth_segment_pcm(text: str, voice: str) -> bytes:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
     )
-    communicate = edge_tts.Communicate(text, voice, rate="+0%", pitch="+0Hz")
+    communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+0Hz")
     async for chunk in communicate.stream():
         if chunk["type"] == "audio":
             proc.stdin.write(chunk["data"])
@@ -507,10 +516,10 @@ async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
     stdout, _ = await proc.communicate(input=pcm)
     return BytesIO(stdout)
 
-async def _safe_synth_segment_pcm(text: str, voice: str) -> bytes:
+async def _safe_synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
     """Like _synth_segment_pcm but swallows errors and returns empty bytes."""
     try:
-        return await _synth_segment_pcm(text, voice)
+        return await _synth_segment_pcm(text, voice, lang=lang)
     except Exception as e:
         logging.warning(f"Skipping segment due to error: {e!r} | text={text[:30]!r}")
         return b''
@@ -518,7 +527,7 @@ async def _safe_synth_segment_pcm(text: str, voice: str) -> bytes:
 async def synthesize_mixed(segments: list, voice_map: dict) -> BytesIO:
     """Synthesize multiple-language segments in parallel, return one OGG."""
     tasks = [
-        _safe_synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'))
+        _safe_synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'), lang=lang)
         for chunk, lang in segments
         if strip_unspeakable(chunk).strip() and has_speakable_content(strip_unspeakable(chunk))
     ]
@@ -608,7 +617,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 audio_buf = await synthesize_mixed(segments, vm)
             else:
                 proc = await _start_ffmpeg()
-                audio_buf = await synthesize_to_bytes(text, voice, proc=proc)
+                audio_buf = await synthesize_to_bytes(text, voice, lang=lang, proc=proc)
 
             msg = await update.message.reply_voice(
                 voice=audio_buf,
