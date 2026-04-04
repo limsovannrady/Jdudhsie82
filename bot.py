@@ -379,10 +379,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
 
     voice = voice_map.get(detected_lang) or voice_map.get('en')
-    lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
-    gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
-    caption = f"🌐 {lang_name} | {gender_label}"
-
     cache_key = f"{voice}:{text}"
     cached_file_id = _cache_get(cache_key)
 
@@ -395,7 +391,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ffmpeg_task.cancel()
             await update.message.reply_voice(
                 voice=cached_file_id,
-                caption=caption,
                 reply_markup=KEYBOARD,
                 reply_parameters=quote
             )
@@ -411,7 +406,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             audio_buf = await synthesize_to_bytes(text, voice, proc=proc)
             msg = await update.message.reply_voice(
                 voice=audio_buf,
-                caption=caption,
                 reply_markup=KEYBOARD,
                 reply_parameters=quote
             )
