@@ -1,12 +1,18 @@
 import os
 import re
 import asyncio
+import logging
 from io import BytesIO
 import edge_tts
 from langdetect import detect as langdetect_detect, DetectorFactory
 from telegram import Update, constants, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
 DetectorFactory.seed = 0
 
@@ -280,16 +286,39 @@ async def synthesize_to_bytes(text: str, voice: str, rate: str = "-5%", pitch: s
     buf.seek(0)
     return buf
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if GENDER_KEY not in context.user_data:
         context.user_data[GENDER_KEY] = "female"
-    await update.message.reply_text(
-        "សួស្ដី! ខ្ញុំជា Text-to-Voice Bot 🎙️\n\n"
-        "ផ្ញើអត្ថបទណាមួយក្នុងភាសាណាក៏បាន ហើយខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
-        " គាំទ្រ 80+ ភាសា រួមមាន ខ្មែរ, English, 中文, العربية, हिंदी...\n\n"
-        "ជ្រើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។",
-        reply_markup=KEYBOARD
+
+    welcome_text = "សួស្ដី! ខ្ញុំជា Text-to-Voice Bot។ ផ្ញើអត្ថបទណាមួយ ខ្ញុំនឹងបំប្លែងជាសំឡេងពិរោះ!"
+    voice = FEMALE_VOICES.get("km")
+
+    asyncio.create_task(
+        context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
     )
+
+    try:
+        audio_buf = await synthesize_to_bytes(welcome_text, voice)
+        await update.message.reply_voice(
+            voice=audio_buf,
+            caption=(
+                "🎙️ Text-to-Voice Bot\n\n"
+                "ផ្ញើអត្ថបទណាមួយ ខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
+                "🌐 គាំទ្រ 80+ ភាសា: ខ្មែរ, English, 中文, العربية, हिंदी...\n\n"
+                "ជ្រើសសំឡេងប្រុស ឬស្រីដោយប្រើប៊ូតុងខាងក្រោម។"
+            ),
+            reply_markup=KEYBOARD
+        )
+    except Exception as e:
+        logging.error(f"Start voice error: {e}")
+        await update.message.reply_text(
+            "🎙️ Text-to-Voice Bot\n\nផ្ញើអត្ថបទណាមួយ ខ្ញុំបំប្លែងជាសំឡេងពិរោះ!\n"
+            "🌐 គាំទ្រ 80+ ភាសា: ខ្មែរ, English, 中文, العربية, हिंदी...",
+            reply_markup=KEYBOARD
+        )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -325,17 +354,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_name = LANG_NAMES.get(detected_lang, detected_lang.upper())
     gender_label = "👨 ប្រុស" if gender == "male" else "👩 ស្រី"
 
+    logging.info(f"Detected lang: {detected_lang} | Voice: {voice} | Text: {text[:30]}")
+
     asyncio.create_task(
         context.bot.send_chat_action(update.effective_chat.id, constants.ChatAction.RECORD_VOICE)
     )
 
-    audio_buf = await synthesize_to_bytes(text, voice)
-
-    await update.message.reply_voice(
-        voice=audio_buf,
-        caption=f"🌐 {lang_name} | {gender_label}",
-        reply_markup=KEYBOARD
-    )
+    try:
+        audio_buf = await synthesize_to_bytes(text, voice)
+        await update.message.reply_voice(
+            voice=audio_buf,
+            caption=f"🌐 {lang_name} | {gender_label}",
+            reply_markup=KEYBOARD
+        )
+    except Exception as e:
+        logging.error(f"Error synthesizing voice: {e}")
+        await update.message.reply_text(
+            f"⚠️ មានបញ្ហាក្នុងការបង្កើតសំឡេង។ សូមព្យាយាមម្តងទៀត។\nError: {e}",
+            reply_markup=KEYBOARD
+        )
 
 request = HTTPXRequest(
     connection_pool_size=20,
@@ -353,4 +390,5 @@ app = (
 )
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.add_error_handler(error_handler)
 app.run_polling(drop_pending_updates=True, timeout=10)
