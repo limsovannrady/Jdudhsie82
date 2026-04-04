@@ -228,6 +228,13 @@ NORMALIZE = {
     "iw": "he", "no": "nb", "tl": "fil", "jw": "jv", "in": "id",
 }
 
+# Languages detected by script but not supported by edge-tts → map to closest voice
+LANG_FALLBACK = {
+    "pa": "hi",   # Punjabi (Gurmukhi) → Hindi (closest supported voice)
+    "or": "bn",   # Oriya → Bengali (closest supported voice)
+    "hy": "en",   # Armenian → English (no close option in edge-tts)
+}
+
 # Script-based detection using Unicode ranges (faster & more reliable than langdetect)
 SCRIPT_MAP = [
     (r'[\u1780-\u17FF]', 'km'),        # Khmer
@@ -375,6 +382,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Detect language while ffmpeg is starting up
     detected_lang = detect_language(text)
+    detected_lang = LANG_FALLBACK.get(detected_lang, detected_lang)
     gender = context.user_data.get(GENDER_KEY, "female")
     voice_map = MALE_VOICES if gender == "male" else FEMALE_VOICES
 
@@ -382,7 +390,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cache_key = f"{voice}:{text}"
     cached_file_id = _cache_get(cache_key)
 
-    logging.info(f"Detected: {detected_lang} | Chars: {len(text)} | Cache: {'HIT' if cached_file_id else 'MISS'}")
+    logging.info(f"Detected: {detected_lang} | Voice: {voice} | Chars: {len(text)} | Cache: {'HIT' if cached_file_id else 'MISS'}")
 
     quote = ReplyParameters(message_id=update.message.message_id)
 
