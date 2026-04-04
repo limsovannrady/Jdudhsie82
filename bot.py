@@ -341,6 +341,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '<b>ខ្ញុំជា Text to voice bot</b>\n\n'
         '<tg-emoji emoji-id="5471978009449731768">👉</tg-emoji><i>គ្រាន់តែ សរសេរអក្សរណាមួយ ហើយ ខ្ញុំនឹងបំប្លែងជាសំឡេងដោយស្វ័យប្រវត្តិ។</i>',
         parse_mode='HTML',
+        message_effect_id="5104841245755180586",
         reply_markup=KEYBOARD
     )
 
