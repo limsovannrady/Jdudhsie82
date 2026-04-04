@@ -453,7 +453,7 @@ def detect_language(text: str) -> str:
 async def _start_ffmpeg():
     return await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
-        "-c:a", "libopus", "-b:a", "64k", "-ac", "1", "-ar", "24000", "-f", "ogg", "pipe:1",
+        "-c:a", "libopus", "-b:a", "128k", "-ac", "1", "-ar", "48000", "-f", "ogg", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL
@@ -482,13 +482,13 @@ async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en', proc=None
     return BytesIO(stdout)
 
 async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
-    """Synthesize one segment to raw PCM s16le 24000Hz mono."""
+    """Synthesize one segment to raw PCM s16le 48000Hz mono."""
     text = strip_unspeakable(text).strip()
     if not text or not has_speakable_content(text):
         return b''
     proc = await asyncio.create_subprocess_exec(
         "ffmpeg", "-y", "-f", "mp3", "-i", "pipe:0",
-        "-ac", "1", "-ar", "24000", "-f", "s16le", "pipe:1",
+        "-ac", "1", "-ar", "48000", "-f", "s16le", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
@@ -504,8 +504,8 @@ async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
 async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
     """Encode concatenated PCM bytes to OGG Opus."""
     proc = await asyncio.create_subprocess_exec(
-        "ffmpeg", "-y", "-f", "s16le", "-ac", "1", "-ar", "24000", "-i", "pipe:0",
-        "-c:a", "libopus", "-b:a", "64k", "-f", "ogg", "pipe:1",
+        "ffmpeg", "-y", "-f", "s16le", "-ac", "1", "-ar", "48000", "-i", "pipe:0",
+        "-c:a", "libopus", "-b:a", "128k", "-f", "ogg", "pipe:1",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.DEVNULL,
