@@ -541,8 +541,10 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    last_name = user.last_name or user.first_name or "បងប្អូន"
     await update.message.reply_text(
-        '<tg-emoji emoji-id="5472055112702629499">👋</tg-emoji> <b>សួស្តី</b> K21b.Lim Sovannrady\n\n'
+        f'<tg-emoji emoji-id="5472055112702629499">👋</tg-emoji> <b>សួស្តី</b> {last_name}\n\n'
         '<b>ខ្ញុំជា Text to voice bot</b>\n\n'
         '<tg-emoji emoji-id="5471978009449731768">👉</tg-emoji><i>គ្រាន់តែ សរសេរអក្សរណាមួយ ហើយ ខ្ញុំនឹងបំប្លែងជាសំឡេងដោយស្វ័យប្រវត្តិ។</i>',
         parse_mode='HTML',
