@@ -6,6 +6,10 @@ import logging
 from io import BytesIO
 from collections import OrderedDict
 import edge_tts
+import imageio_ffmpeg
+
+_FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+
 from langdetect import detect as langdetect_detect, detect_langs, DetectorFactory
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyParameters, constants
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
@@ -452,38 +456,58 @@ def voice_rate(lang: str) -> str:
     """Return the TTS speaking rate for a language."""
     return '+0%'
 
-async def _synth_segment_mp3(text: str, voice: str, lang: str = 'en') -> bytes:
-    """Synthesize one segment and return raw MP3 bytes from edge-tts."""
+async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
+    """Synthesize one segment to raw PCM s16le 48000Hz mono via bundled ffmpeg."""
     text = strip_unspeakable(text).strip()
     if not text or not has_speakable_content(text):
         return b''
     try:
+        proc = await asyncio.create_subprocess_exec(
+            _FFMPEG, "-y", "-f", "mp3", "-i", "pipe:0",
+            "-ac", "1", "-ar", "48000", "-f", "s16le", "pipe:1",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
         communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+5Hz")
-        data = bytearray()
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
-                data.extend(chunk["data"])
-        return bytes(data)
+                proc.stdin.write(chunk["data"])
+        proc.stdin.close()
+        stdout, _ = await proc.communicate()
+        return stdout
     except Exception as e:
         logging.warning(f"Skipping segment due to error: {e!r} | text={text[:30]!r}")
         return b''
 
+async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
+    """Encode concatenated PCM bytes to OGG Opus via bundled ffmpeg."""
+    proc = await asyncio.create_subprocess_exec(
+        _FFMPEG, "-y", "-f", "s16le", "-ac", "1", "-ar", "48000", "-i", "pipe:0",
+        "-c:a", "libopus", "-b:a", "128k", "-f", "ogg", "pipe:1",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    stdout, _ = await proc.communicate(input=pcm)
+    return BytesIO(stdout)
+
 async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en') -> BytesIO:
-    """Synthesize text to MP3 bytes."""
-    mp3 = await _synth_segment_mp3(text, voice, lang=lang)
-    return BytesIO(mp3)
+    """Synthesize text to OGG Opus voice bytes."""
+    pcm = await _synth_segment_pcm(text, voice, lang=lang)
+    return await _pcm_to_ogg(pcm)
 
 async def synthesize_mixed(segments: list, voice_map: dict) -> BytesIO:
-    """Synthesize multiple-language segments in parallel, return concatenated MP3."""
+    """Synthesize multiple-language segments in parallel, return one OGG Opus."""
     tasks = [
-        _synth_segment_mp3(chunk, voice_map.get(lang) or voice_map.get('en'), lang=lang)
+        _synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'), lang=lang)
         for chunk, lang in segments
         if strip_unspeakable(chunk).strip() and has_speakable_content(strip_unspeakable(chunk))
     ]
     if not tasks:
         return BytesIO(b'')
-    parts = await asyncio.gather(*tasks)
-    return BytesIO(b''.join(parts))
+    pcm_parts = await asyncio.gather(*tasks)
+    return await _pcm_to_ogg(b''.join(pcm_parts))
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
@@ -550,8 +574,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if cached_file_id:
-            await update.message.reply_audio(
-                audio=cached_file_id,
+            await update.message.reply_voice(
+                voice=cached_file_id,
                 reply_markup=KEYBOARD,
                 reply_parameters=quote
             )
@@ -559,7 +583,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             asyncio.create_task(
                 context.bot.send_chat_action(
                     update.effective_chat.id,
-                    constants.ChatAction.UPLOAD_VOICE
+                    constants.ChatAction.RECORD_VOICE
                 )
             )
             if is_mixed:
@@ -567,13 +591,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 audio_buf = await synthesize_to_bytes(text, voice, lang=lang)
 
-            audio_buf.name = "audio.mp3"
-            msg = await update.message.reply_audio(
-                audio=audio_buf,
+            msg = await update.message.reply_voice(
+                voice=audio_buf,
                 reply_markup=KEYBOARD,
                 reply_parameters=quote
             )
-            _cache_set(cache_key, msg.audio.file_id)
+            _cache_set(cache_key, msg.voice.file_id)
     except Exception as e:
         logging.error(f"Error synthesizing voice: {e}")
         await update.message.reply_text(
