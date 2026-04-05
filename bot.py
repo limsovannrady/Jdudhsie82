@@ -93,6 +93,50 @@ def set_gender(user_id: int, gender: str):
 
 _load_prefs()
 
+# ─── New-user tracking & admin notification ────────────────────────────────────
+ADMIN_ID = 5002402843
+_KNOWN_USERS_FILE = os.path.join(os.path.dirname(__file__), "known_users.json")
+_known_users: set = set()
+
+def _load_known_users():
+    global _known_users
+    try:
+        if os.path.exists(_KNOWN_USERS_FILE):
+            with open(_KNOWN_USERS_FILE, "r", encoding="utf-8") as f:
+                _known_users = set(json.load(f))
+    except Exception:
+        _known_users = set()
+
+def _save_known_users():
+    try:
+        with open(_KNOWN_USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(_known_users), f)
+    except Exception as e:
+        logging.warning(f"Could not save known users: {e}")
+
+def is_new_user(user_id: int) -> bool:
+    return str(user_id) not in _known_users
+
+def mark_user_known(user_id: int):
+    _known_users.add(str(user_id))
+    _save_known_users()
+
+async def notify_admin_new_user(bot, user):
+    try:
+        username = f"@{user.username}" if user.username else "គ្មាន username"
+        full_name = user.full_name or "គ្មានឈ្មោះ"
+        msg = (
+            f"🆕 <b>អ្នកប្រើប្រាស់ថ្មី!</b>\n\n"
+            f"👤 <b>ឈ្មោះ:</b> {full_name}\n"
+            f"🔖 <b>Username:</b> {username}\n"
+            f"🪪 <b>ID:</b> <code>{user.id}</code>"
+        )
+        await bot.send_message(chat_id=ADMIN_ID, text=msg, parse_mode="HTML")
+    except Exception as e:
+        logging.warning(f"Could not notify admin: {e}")
+
+_load_known_users()
+
 # All available edge-tts voices — male and female per language
 MALE_VOICES = {
     "af":    "af-ZA-WillemNeural",
@@ -542,6 +586,9 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    if is_new_user(user.id):
+        mark_user_known(user.id)
+        asyncio.create_task(notify_admin_new_user(context.bot, user))
     last_name = user.last_name or user.first_name or "បងប្អូន"
     await update.message.reply_text(
         f'<tg-emoji emoji-id="5472055112702629499">👋</tg-emoji> <b>សួស្តី</b> {last_name}\n\n'
@@ -555,6 +602,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
+
+    user = update.effective_user
+    if is_new_user(user.id):
+        mark_user_known(user.id)
+        asyncio.create_task(notify_admin_new_user(context.bot, user))
 
     text = update.message.text
 
