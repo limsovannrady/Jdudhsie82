@@ -7,9 +7,6 @@ from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from telegram import Update
-from bot import create_app
-
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
@@ -17,6 +14,9 @@ logging.basicConfig(
 
 
 async def _process(update_data: dict):
+    from telegram import Update
+    from bot import create_app
+
     application = create_app()
     await application.initialize()
     await application.start()
@@ -42,9 +42,11 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(b"OK")
 
     def do_GET(self):
+        token_set = bool(os.environ.get("TELEGRAM_BOT_TOKEN"))
+        status = "OK" if token_set else "ERROR: TELEGRAM_BOT_TOKEN not set"
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Telegram TTS Bot webhook is active.")
+        self.wfile.write(f"Telegram TTS Bot | Status: {status}".encode())
 
     def log_message(self, format, *args):
         logging.info(f"[{self.address_string()}] {format % args}")

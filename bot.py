@@ -59,8 +59,6 @@ logging.basicConfig(
 
 DetectorFactory.seed = 0
 
-TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-
 # All available edge-tts voices — male and female per language
 MALE_VOICES = {
     "af":    "af-ZA-WillemNeural",
@@ -585,6 +583,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 def create_app():
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
     request = HTTPXRequest(
         connection_pool_size=32,
         read_timeout=60,
@@ -594,7 +593,7 @@ def create_app():
     )
     application = (
         ApplicationBuilder()
-        .token(TOKEN)
+        .token(token)
         .request(request)
         .concurrent_updates(True)
         .build()
