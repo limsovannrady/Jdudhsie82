@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import unicodedata
 import asyncio
 import logging
@@ -62,6 +63,35 @@ logging.basicConfig(
 )
 
 DetectorFactory.seed = 0
+
+# ─── Persistent user preferences (survives bot restarts) ──────────────────────
+_PREFS_FILE = os.path.join(os.path.dirname(__file__), "user_prefs.json")
+_user_prefs: dict = {}
+
+def _load_prefs():
+    global _user_prefs
+    try:
+        if os.path.exists(_PREFS_FILE):
+            with open(_PREFS_FILE, "r", encoding="utf-8") as f:
+                _user_prefs = json.load(f)
+    except Exception:
+        _user_prefs = {}
+
+def _save_prefs():
+    try:
+        with open(_PREFS_FILE, "w", encoding="utf-8") as f:
+            json.dump(_user_prefs, f)
+    except Exception as e:
+        logging.warning(f"Could not save user prefs: {e}")
+
+def get_gender(user_id: int) -> str:
+    return _user_prefs.get(str(user_id), "female")
+
+def set_gender(user_id: int, gender: str):
+    _user_prefs[str(user_id)] = gender
+    _save_prefs()
+
+_load_prefs()
 
 # All available edge-tts voices — male and female per language
 MALE_VOICES = {
@@ -402,8 +432,6 @@ def segment_text(text: str) -> list:
 
     return [(c, l) for c, l in merged] if merged else [('', 'en')]
 
-GENDER_KEY = "voice_gender"
-
 KEYBOARD = ReplyKeyboardMarkup(
     [[KeyboardButton("👨 សំឡេងប្រុស"), KeyboardButton("👩 សំឡេងស្រី")]],
     resize_keyboard=True
@@ -513,8 +541,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Exception while handling update: {context.error}", exc_info=context.error)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if GENDER_KEY not in context.user_data:
-        context.user_data[GENDER_KEY] = "female"
     await update.message.reply_text(
         '<tg-emoji emoji-id="5472055112702629499">👋</tg-emoji> <b>សួស្តី</b> K21b.Lim Sovannrady\n\n'
         '<b>ខ្ញុំជា Text to voice bot</b>\n\n'
@@ -531,7 +557,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if text == "👨 សំឡេងប្រុស":
-        context.user_data[GENDER_KEY] = "male"
+        set_gender(update.effective_user.id, "male")
         await update.message.reply_text(
             '<tg-emoji emoji-id="5805174945138872447">✅</tg-emoji> <b>បានប្តូរទៅ 👨 សំឡេងប្រុស</b>',
             parse_mode='HTML',
@@ -541,7 +567,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "👩 សំឡេងស្រី":
-        context.user_data[GENDER_KEY] = "female"
+        set_gender(update.effective_user.id, "female")
         await update.message.reply_text(
             '<tg-emoji emoji-id="5805174945138872447">✅</tg-emoji> <b>បានប្តូរទៅ 👩 សំឡេងស្រី</b>',
             parse_mode='HTML',
@@ -556,7 +582,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     segments = segment_text(text)
     is_mixed = len(segments) > 1
 
-    gender = context.user_data.get(GENDER_KEY, "female")
+    gender = get_gender(update.effective_user.id)
     vm = MALE_VOICES if gender == "male" else FEMALE_VOICES
 
     if is_mixed:
