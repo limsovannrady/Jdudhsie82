@@ -478,9 +478,9 @@ def segment_text(text: str) -> list:
 
 def build_voice_keyboard(gender: str) -> InlineKeyboardMarkup:
     if gender == "male":
-        buttons = [InlineKeyboardButton("👩 សំឡេងស្រី", callback_data="voice:female")]
+        buttons = [InlineKeyboardButton("👩", callback_data="voice:female")]
     else:
-        buttons = [InlineKeyboardButton("👨 សំឡេងប្រុស", callback_data="voice:male")]
+        buttons = [InlineKeyboardButton("👨", callback_data="voice:male")]
     return InlineKeyboardMarkup([buttons])
 
 def detect_language(text: str) -> str:
