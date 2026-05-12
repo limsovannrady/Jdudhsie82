@@ -91,6 +91,17 @@ def set_gender(user_id: int, gender: str):
     _user_prefs[str(user_id)] = gender
     _save_prefs()
 
+def get_speed(user_id: int) -> str:
+    return _user_prefs.get(f"{user_id}_speed", "normal")
+
+def set_speed(user_id: int, speed: str):
+    _user_prefs[f"{user_id}_speed"] = speed
+    _save_prefs()
+
+SPEED_RATES  = {"slow": "-25%", "normal": "+0%", "fast": "+25%"}
+SPEED_LABELS = {"slow": "🐢 ល្បឿន", "normal": "▶️ ល្បឿន", "fast": "⚡ ល្បឿន"}
+SPEED_CYCLE  = {"slow": "normal", "normal": "fast", "fast": "slow"}
+
 _load_prefs()
 
 # ─── New-user tracking & admin notification ────────────────────────────────────
@@ -476,12 +487,13 @@ def segment_text(text: str) -> list:
 
     return [(c, l) for c, l in merged] if merged else [('', 'en')]
 
-def build_voice_keyboard(gender: str) -> InlineKeyboardMarkup:
-    if gender == "male":
-        buttons = [InlineKeyboardButton("👩 ស្រី", callback_data="voice:female")]
-    else:
-        buttons = [InlineKeyboardButton("👨 ប្រុស", callback_data="voice:male")]
-    return InlineKeyboardMarkup([buttons])
+def build_voice_keyboard(gender: str, speed: str) -> InlineKeyboardMarkup:
+    gender_btn = InlineKeyboardButton(
+        "👩 ស្រី" if gender == "male" else "👨 ប្រុស",
+        callback_data="voice:female" if gender == "male" else "voice:male"
+    )
+    speed_btn = InlineKeyboardButton(SPEED_LABELS[speed], callback_data=f"speed:{speed}")
+    return InlineKeyboardMarkup([[gender_btn, speed_btn]])
 
 def detect_language(text: str) -> str:
     # 1. Try script-based detection first (instant & reliable)
@@ -526,11 +538,7 @@ def detect_language(text: str) -> str:
 
     return 'en'
 
-def voice_rate(lang: str) -> str:
-    """Return the TTS speaking rate for a language."""
-    return '+0%'
-
-async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
+async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en', rate: str = '+0%') -> bytes:
     """Synthesize one segment to raw PCM s16le 48000Hz mono via bundled ffmpeg."""
     text = strip_unspeakable(text).strip()
     if not text or not has_speakable_content(text):
@@ -543,7 +551,7 @@ async def _synth_segment_pcm(text: str, voice: str, lang: str = 'en') -> bytes:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        communicate = edge_tts.Communicate(text, voice, rate=voice_rate(lang), pitch="+5Hz")
+        communicate = edge_tts.Communicate(text, voice, rate=rate, pitch="+5Hz")
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 proc.stdin.write(chunk["data"])
@@ -566,15 +574,15 @@ async def _pcm_to_ogg(pcm: bytes) -> BytesIO:
     stdout, _ = await proc.communicate(input=pcm)
     return BytesIO(stdout)
 
-async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en') -> BytesIO:
+async def synthesize_to_bytes(text: str, voice: str, lang: str = 'en', rate: str = '+0%') -> BytesIO:
     """Synthesize text to OGG Opus voice bytes."""
-    pcm = await _synth_segment_pcm(text, voice, lang=lang)
+    pcm = await _synth_segment_pcm(text, voice, lang=lang, rate=rate)
     return await _pcm_to_ogg(pcm)
 
-async def synthesize_mixed(segments: list, voice_map: dict) -> BytesIO:
+async def synthesize_mixed(segments: list, voice_map: dict, rate: str = '+0%') -> BytesIO:
     """Synthesize multiple-language segments in parallel, return one OGG Opus."""
     tasks = [
-        _synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'), lang=lang)
+        _synth_segment_pcm(chunk, voice_map.get(lang) or voice_map.get('en'), lang=lang, rate=rate)
         for chunk, lang in segments
         if strip_unspeakable(chunk).strip() and has_speakable_content(strip_unspeakable(chunk))
     ]
@@ -609,6 +617,15 @@ async def handle_gender_callback(update: Update, context: ContextTypes.DEFAULT_T
     label = "👩 សំឡេងស្រី" if gender == "female" else "👨 សំឡេងប្រុស"
     await query.message.reply_text(f"✅ បានប្តូរទៅ {label}")
 
+async def handle_speed_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    current_speed = query.data.split(":")[1]
+    new_speed = SPEED_CYCLE[current_speed]
+    set_speed(query.from_user.id, new_speed)
+    gender = get_gender(query.from_user.id)
+    await query.answer(SPEED_LABELS[new_speed])
+    await query.edit_message_reply_markup(reply_markup=build_voice_keyboard(gender, new_speed))
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -625,20 +642,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_mixed = len(segments) > 1
 
     gender = get_gender(update.effective_user.id)
+    speed  = get_speed(update.effective_user.id)
+    rate   = SPEED_RATES[speed]
     vm = MALE_VOICES if gender == "male" else FEMALE_VOICES
 
     if is_mixed:
-        cache_key = f"mixed:{gender}:{text}"
+        cache_key = f"mixed:{gender}:{speed}:{text}"
     else:
         lang = segments[0][1]
         voice = vm.get(lang) or vm.get('en')
-        cache_key = f"{voice}:{text}"
+        cache_key = f"{voice}:{speed}:{text}"
 
     cached_file_id = _cache_get(cache_key)
 
-    logging.info(f"Segments: {[(c[:12]+'…' if len(c)>12 else c, l) for c,l in segments]} | Cache: {'HIT' if cached_file_id else 'MISS'}")
+    logging.info(f"Segments: {[(c[:12]+'…' if len(c)>12 else c, l) for c,l in segments]} | Speed: {speed} | Cache: {'HIT' if cached_file_id else 'MISS'}")
 
-    keyboard = build_voice_keyboard(gender)
+    keyboard = build_voice_keyboard(gender, speed)
 
     try:
         if cached_file_id:
@@ -654,9 +673,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
             )
             if is_mixed:
-                audio_buf = await synthesize_mixed(segments, vm)
+                audio_buf = await synthesize_mixed(segments, vm, rate=rate)
             else:
-                audio_buf = await synthesize_to_bytes(text, voice, lang=lang)
+                audio_buf = await synthesize_to_bytes(text, voice, lang=lang, rate=rate)
 
             msg = await update.message.reply_voice(
                 voice=audio_buf,
@@ -687,6 +706,7 @@ def create_app():
     )
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_gender_callback, pattern="^voice:"))
+    application.add_handler(CallbackQueryHandler(handle_speed_callback, pattern="^speed:"))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
     return application
