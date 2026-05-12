@@ -622,14 +622,29 @@ async def handle_gender_callback(update: Update, context: ContextTypes.DEFAULT_T
         reply_markup=build_voice_keyboard(gender, speed)
     )
 
+def build_speed_select_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🐢 យឺត",    callback_data="set_speed:slow"),
+        InlineKeyboardButton("▶️ ធម្មតា", callback_data="set_speed:normal"),
+        InlineKeyboardButton("⚡ លឿន",   callback_data="set_speed:fast"),
+    ]])
+
 async def handle_speed_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    current_speed = query.data.split(":")[1]
-    new_speed = SPEED_CYCLE[current_speed]
+    await query.answer()
+    await query.message.reply_text(
+        "<b>ជ្រើសរើសល្បឿនសំឡេង:</b>",
+        parse_mode="HTML",
+        reply_markup=build_speed_select_keyboard()
+    )
+
+async def handle_set_speed_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    new_speed = query.data.split(":")[1]
     set_speed(query.from_user.id, new_speed)
     gender = get_gender(query.from_user.id)
     await query.answer(SPEED_LABELS[new_speed])
-    await query.edit_message_reply_markup(reply_markup=build_voice_keyboard(gender, new_speed))
+    await query.edit_message_reply_markup(reply_markup=None)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -712,6 +727,7 @@ def create_app():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(handle_gender_callback, pattern="^voice:"))
     application.add_handler(CallbackQueryHandler(handle_speed_callback, pattern="^speed:"))
+    application.add_handler(CallbackQueryHandler(handle_set_speed_callback, pattern="^set_speed:"))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
     return application
