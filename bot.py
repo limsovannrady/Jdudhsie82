@@ -621,8 +621,7 @@ async def handle_gender_callback(update: Update, context: ContextTypes.DEFAULT_T
     label = "👩 សំឡេងស្រី" if gender == "female" else "👨 សំឡេងប្រុស"
     conf_text = f'<tg-emoji emoji-id="6217467173917429904">✅</tg-emoji> <b>បានប្តូរទៅ {label}</b>'
     if query.message.voice:
-        # Tapped on a voice message → remove its buttons, send new confirmation
-        await query.edit_message_reply_markup(reply_markup=None)
+        # Tapped on a voice message → send new confirmation (keep voice buttons)
         await query.message.reply_text(
             conf_text, parse_mode='HTML',
             reply_markup=build_voice_keyboard(gender, speed)
@@ -645,7 +644,6 @@ def build_speed_select_keyboard() -> InlineKeyboardMarkup:
 async def handle_speed_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.edit_message_reply_markup(reply_markup=None)
     await query.message.reply_text(
         "<b>ជ្រើសរើសល្បឿនសំឡេង:</b>",
         parse_mode="HTML",
