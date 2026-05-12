@@ -615,7 +615,10 @@ async def handle_gender_callback(update: Update, context: ContextTypes.DEFAULT_T
     set_gender(query.from_user.id, gender)
     await query.edit_message_reply_markup(reply_markup=None)
     label = "👩 សំឡេងស្រី" if gender == "female" else "👨 សំឡេងប្រុស"
-    await query.message.reply_text(f"✅ បានប្តូរទៅ {label}")
+    await query.message.reply_text(
+        f'<tg-emoji emoji-id="6217467173917429904">✅</tg-emoji> <b>បានប្តូរទៅ {label}</b>',
+        parse_mode='HTML'
+    )
 
 async def handle_speed_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
