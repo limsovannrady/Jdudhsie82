@@ -605,9 +605,9 @@ async def handle_gender_callback(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
     gender = query.data.split(":")[1]
     set_gender(query.from_user.id, gender)
-    await query.edit_message_reply_markup(
-        reply_markup=build_voice_keyboard(gender)
-    )
+    await query.edit_message_reply_markup(reply_markup=build_voice_keyboard(gender))
+    label = "👩 សំឡេងស្រី" if gender == "female" else "👨 សំឡេងប្រុស"
+    await query.message.reply_text(f"✅ បានប្តូរទៅ {label}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
