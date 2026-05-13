@@ -497,7 +497,7 @@ def build_voice_keyboard(gender: str, speed: str) -> InlineKeyboardMarkup:
         "👩 សំឡេងស្រី" if gender == "male" else "👨 សំឡេងប្រុស",
         callback_data="voice:female" if gender == "male" else "voice:male"
     )
-    speed_btn = InlineKeyboardButton(f"{SPEED_EMOJI[speed]} ល្បឿន", callback_data=f"speed:{speed}")
+    speed_btn = InlineKeyboardButton("🚀 ល្បឿន", callback_data=f"speed:{speed}")
     return InlineKeyboardMarkup([[gender_btn, speed_btn]])
 
 def detect_language(text: str) -> str:
